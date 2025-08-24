@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 uint256 constant ID = uint256(keccak256('com.proofofplay.vrfsystem.v1'));
 

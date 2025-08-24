@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 import {IVRFSystem} from "./IVRF.sol";
 
@@ -18,7 +18,7 @@ contract CoinFlip {
     // Game parameters
     uint256 public constant HOUSE_EDGE = 1_000_000; // 1% in 8-decimal format
     uint256 public constant WIN_CHANCE = 50_000_000; // 50% in 8-decimal format  
-    uint256 public constant BASE_PAYOUT = 198_000_000; // 1.98x payout (2x - 1% house edge) in 8-decimal format
+    uint256 public constant BASE_PAYOUT = 200_000_000 - 2 * HOUSE_EDGE; // 1.98x payout (2x - 1% house edge) in 8-decimal format
     uint256 public minBet = 0.001 ether; // Minimum bet amount
     uint256 public maxRewardPercent = 10_000_000; // 10% of contract balance max payout
     
