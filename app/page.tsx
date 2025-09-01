@@ -1,11 +1,13 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useWriteContract, usePublicClient, useReadContract } from 'wagmi';
 import { parseEther, parseEventLogs, formatEther, type Abi } from 'viem';
 
-import coinFlipJson from './abi/CoinFlip.json';
-import mockVrfJson from './abi/MockVRF.json';
-import addresses from './deployments.localhost.json';
+import coinFlipJson from '../src/abi/CoinFlip.json';
+import mockVrfJson from '../src/abi/MockVRF.json';
+import addresses from '../src/deployments.localhost.json';
 
 const coinFlipAbi = coinFlipJson.abi as Abi;
 const mockVrfAbi = mockVrfJson.abi as Abi;
@@ -18,7 +20,7 @@ type Side = 0 | 1; // 0=HEADS, 1=TAILS
 // gameStats returns an array: [houseEdge, winChance, payoutMultiplier, currentBalance, minBetAmount, maxBetAmount]
 type GameStatsArray = [bigint, bigint, bigint, bigint, bigint, bigint];
 
-export default function App() {
+export default function Home() {
   const [side, setSide] = useState<Side>(0);
   const [amount, setAmount] = useState('0.01');
   const [status, setStatus] = useState<string>('');

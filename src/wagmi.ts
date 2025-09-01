@@ -13,7 +13,7 @@ export const hardhatLocal = defineChain({
   }
 });
 
-const projectId = import.meta.env.VITE_WC_PROJECT_ID as string | undefined;
+const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID as string | undefined;
 
 export const wagmiConfig = createConfig({
   chains: [hardhatLocal],

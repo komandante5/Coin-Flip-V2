@@ -1,6 +1,6 @@
 # CoinFlip V2 DApp
 
-A decentralized coin flip game built with Hardhat, React, and VRF (Verifiable Random Function).
+A decentralized coin flip game built with Hardhat, Next.js, and VRF (Verifiable Random Function).
 
 ## Project Structure
 
@@ -8,7 +8,8 @@ A decentralized coin flip game built with Hardhat, React, and VRF (Verifiable Ra
 ├── contracts/          # Smart contracts
 ├── scripts/            # Deployment and testing scripts
 ├── test/               # Smart contract tests
-├── src/                # Frontend React application
+├── app/                # Next.js app directory
+├── src/                # Shared assets (ABI, deployments)
 ├── public/             # Static assets
 ├── artifacts/          # Compiled contracts
 ├── deployments/        # Deployment addresses
@@ -53,9 +54,9 @@ A decentralized coin flip game built with Hardhat, React, and VRF (Verifiable Ra
 - `npm run simulate:local` - Run simulation scripts
 
 ### Frontend Development
-- `npm run dev` - Start development server
+- `npm run dev` - Start Next.js development server
 - `npm run build` - Build for production
-- `npm run preview` - Preview production build
+- `npm run start` - Start production server
 - `npm run lint` - Run ESLint
 
 ### Utilities
@@ -68,7 +69,7 @@ A decentralized coin flip game built with Hardhat, React, and VRF (Verifiable Ra
 - **Fair Coin Flip**: Provably fair coin flips using VRF
 - **Real-time Updates**: Live contract balance and betting limits
 - **Wallet Integration**: Connect with MetaMask via RainbowKit
-- **Responsive UI**: Modern React interface with real-time feedback
+- **Responsive UI**: Modern Next.js interface with real-time feedback
 - **Audio Feedback**: Sound effects for user interactions
 - **Contract Information**: Live display of game statistics
 
