@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { ConnectWalletButton } from '@/components/connect-wallet-button';
 import { useWriteContract, usePublicClient, useReadContract } from 'wagmi';
 import { parseEther, parseEventLogs, formatEther, type Abi } from 'viem';
 
@@ -112,7 +112,7 @@ export default function Home() {
     <div style={{ maxWidth: 600, margin: '40px auto', fontFamily: 'system-ui' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
         <h2>CoinFlip — Minimal Local Tester</h2>
-        <ConnectButton />
+        <ConnectWalletButton />
       </div>
 
       {/* Contract Information Panel */}

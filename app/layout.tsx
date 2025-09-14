@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import { Providers } from './providers';
 import { BodyHandler } from './body-handler';
-import { NextAbstractWalletProvider } from "@/components/agw-provider";
-import { Toaster } from "@/components/ui/sonner";
+import { NextAbstractWalletProvider } from "../src/components/agw-provider";
+import { Toaster } from "../src/components/ui/sonner";
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -23,7 +22,7 @@ export default function RootLayout({
       <NextAbstractWalletProvider>
         <body className={inter.className} suppressHydrationWarning>
           <BodyHandler />
-          <Providers>{children}</Providers>
+          {children}
           <Toaster />
         </body>
       </NextAbstractWalletProvider>

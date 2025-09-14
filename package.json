@@ -35,6 +35,8 @@
   "dependencies": {
     "@abstract-foundation/agw-client": "^1.9.0",
     "@abstract-foundation/agw-react": "^1.9.0",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-slot": "^1.2.3",
     "@rainbow-me/rainbowkit": "^2.2.8",
     "@tanstack/react-query": "^5.85.6",
     "class-variance-authority": "^0.7.1",
@@ -54,6 +56,7 @@
     "@nomicfoundation/hardhat-ignition": "^3.0.0",
     "@nomicfoundation/hardhat-network-helpers": "^3.0.0",
     "@nomicfoundation/hardhat-toolbox-viem": "^5.0.0",
+    "@tailwindcss/postcss": "^4.1.12",
     "@types/chai": "^5.2.2",
     "@types/node": "^22.17.2",
     "@types/react": "^19.1.10",
