@@ -24,9 +24,9 @@ export default function RewardsPage() {
             {[
               { label: 'Coinflip', href: '/' },
               { label: 'Account', href: '#' },
-              { label: 'Leaderboard', href: '#' },
+              { label: 'Leaderboard', href: '/leaderboard' },
               { label: 'Rewards', href: '/rewards' },
-              { label: 'Bridge', href: '#' },
+              { label: 'On‑chain', href: '/onchain' },
             ].map((item) => (
               <Link
                 key={item.label}
