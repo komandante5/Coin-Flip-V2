@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ConnectWalletButton } from '@/components/connect-wallet-button';
 import { useWriteContract, usePublicClient, useReadContract, useAccount } from 'wagmi';
 import { parseEther, parseEventLogs, formatEther, type Abi, parseAbiItem } from 'viem';
@@ -58,6 +58,7 @@ export default function CoinflipPage() {
   const [amount, setAmount] = useState<string>("0.01");
   const [isFlipping, setIsFlipping] = useState(false);
   const [recentFlips, setRecentFlips] = useState<FlipEvent[]>([]);
+  const [activeTab, setActiveTab] = useState<'all' | 'mine'>('all');
 
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
@@ -77,6 +78,47 @@ export default function CoinflipPage() {
   const minBet = gameStats && Array.isArray(gameStats) && gameStats.length === 6
     ? Number(formatEther(gameStats[4] || BigInt(0)))
     : 0.01;
+
+  // DEMO-ONLY: Local mock data for recent bets when there are no events
+  // TODO: Remove this block and rely solely on on-chain logs once backend is wired
+  const demoFlips = useMemo<FlipEvent[]>(() => {
+    const now = Math.floor(Date.now() / 1000);
+    const demoAddressA = address ?? '0xA11ce0000000000000000000000000000000000';
+    const demoAddressB = '0xB0b0000000000000000000000000000000000001';
+    const demoAddressC = '0xC0c0000000000000000000000000000000000002';
+    const demoAddressD = '0xD0d0000000000000000000000000000000000003';
+    const demoAddressE = '0xE0e0000000000000000000000000000000000004';
+    const demoAddressF = '0xF0f0000000000000000000000000000000000005';
+    const demoAddressG = '0xF00d000000000000000000000000000000000006';
+    const demoAddressH = '0xCafe000000000000000000000000000000000007';
+    const mk = (player: string, amt: string, choice: 0 | 1, didWin?: boolean, secondsAgo: number = 60, id: number = 1): FlipEvent => ({
+      player,
+      betAmount: parseEther(amt),
+      choice,
+      result: didWin === undefined ? undefined : (Math.random() < 0.5 ? 0 : 1),
+      didWin,
+      payout: didWin ? (parseEther(amt) * BigInt(2)) : undefined,
+      requestId: BigInt(id),
+      timestamp: now - secondsAgo,
+    });
+    return [
+      mk(demoAddressA, '0.10', 0, true, 120, 1),
+      mk(demoAddressB, '0.05', 1, false, 460, 2),
+      mk(demoAddressA, '0.25', 1, undefined, 30, 3), // pending example
+      mk(demoAddressB, '1.00', 0, true, 3600, 4),
+      mk(demoAddressC, '0.75', 1, false, 7200, 5),
+      mk(demoAddressD, '0.02', 0, true, 10, 6),
+      mk(demoAddressE, '0.33', 1, undefined, 5, 7), // pending
+      mk(demoAddressA, '0.50', 0, false, 20000, 8),
+      mk(demoAddressF, '2.50', 1, true, 90000, 9),
+      mk(demoAddressB, '0.15', 0, undefined, 15, 10), // pending
+      mk(demoAddressG, '0.05', 1, true, 240, 11),
+      mk(demoAddressH, '0.20', 0, false, 720, 12),
+      mk(demoAddressC, '0.08', 0, true, 180, 13),
+      mk(demoAddressE, '0.60', 1, false, 4200, 14),
+      mk(demoAddressD, '0.12', 1, undefined, 60, 15), // pending
+    ];
+  }, [address]);
 
   // Fetch recent flip events
   useEffect(() => {
@@ -105,7 +147,8 @@ export default function CoinflipPage() {
         
         for (const commitLog of commitLogs.slice(-10)) { // Get last 10
           const block = await publicClient.getBlock({ blockNumber: commitLog.blockNumber });
-          const revealLog = revealLogs.find(r => r.topics[2] === commitLog.topics[2]); // Match by requestId
+          // Match by requestId via decoded args (more robust than topic index)
+          const revealLog = revealLogs.find((r: any) => (r?.args?.requestId) === (commitLog as any)?.args?.requestId);
           
           flips.push({
             player: commitLog.args.player as string,
@@ -119,16 +162,25 @@ export default function CoinflipPage() {
           });
         }
 
-        setRecentFlips(flips.reverse()); // Most recent first
+        const ordered = flips.reverse(); // Most recent first
+        if (ordered.length === 0 && process.env.NODE_ENV !== 'production') {
+          setRecentFlips(demoFlips);
+        } else {
+          setRecentFlips(ordered);
+        }
       } catch (error) {
         console.error('Error fetching flip events:', error);
+        // Fall back to demo flips in dev if fetching failed
+        if (process.env.NODE_ENV !== 'production') {
+          setRecentFlips(demoFlips);
+        }
       }
     };
 
     fetchRecentFlips();
     const interval = setInterval(fetchRecentFlips, 10000);
     return () => clearInterval(interval);
-  }, [publicClient]);
+  }, [publicClient, demoFlips]);
 
   useEffect(() => {
     const id = setInterval(() => refetchStats(), 10000);
@@ -190,6 +242,14 @@ export default function CoinflipPage() {
     return `${Math.floor(diff / 86400)}d ago`;
   };
 
+  const displayedFlips = useMemo(() => {
+    if (activeTab === 'mine') {
+      if (!address) return [] as FlipEvent[];
+      return recentFlips.filter(f => f.player.toLowerCase() === address.toLowerCase());
+    }
+    return recentFlips;
+  }, [activeTab, address, recentFlips]);
+
   return (
     <div className="min-h-screen w-full bg-[#0c0f10] text-white overflow-hidden">
       {/* Ambient background blobs */}
@@ -208,20 +268,20 @@ export default function CoinflipPage() {
 
           <nav className="ml-6 hidden md:flex items-center gap-1 text-[13px] text-neutral-300">
             {[
-              "Coinflip",
-              "Account", 
-              "Leaderboard",
-              "Rewards",
-              "Bridge",
+              { label: "Coinflip", href: "/" },
+              { label: "Account", href: "#" },
+              { label: "Leaderboard", href: "/leaderboard" },
+              { label: "Rewards", href: "/rewards" },
+              { label: "On‑chain", href: "/onchain" },
             ].map((item) => (
               <a
-                key={item}
+                key={item.label}
                 className={`px-3 py-1.5 rounded-md hover:bg-white/[0.04] transition ${
-                  item === "Coinflip" ? "text-white" : ""
+                  item.label === "Coinflip" ? "text-white" : ""
                 }`}
-                href="#"
+                href={item.href}
               >
-                {item}
+                {item.label}
               </a>
             ))}
           </nav>
@@ -233,59 +293,67 @@ export default function CoinflipPage() {
       </header>
 
       {/* Content */}
-      <main className="relative z-10 mx-auto max-w-[1300px] px-4 py-6 grid grid-cols-12 gap-6">
+      <main className="relative z-10 mx-auto max-w-[1300px] px-4 py-6 grid grid-cols-12 gap-5">
         {/* Left rail: recent bets */}
-        <aside className="col-span-12 md:col-span-3">
+        <aside className="col-span-12 md:col-span-4">
           <div className="rounded-2xl border border-white/10 bg-white/[0.02]">
-            <div className="flex px-4 pt-4">
-              <button className="text-sm px-3 py-2 rounded-lg bg-white/[0.04]">All Bets</button>
-              <button className="text-sm px-3 py-2 rounded-lg text-neutral-400">My Bets</button>
+            <div className="flex gap-2 px-4 pt-4">
+              <button
+                onClick={() => setActiveTab('all')}
+                className={`text-sm px-3 py-2 rounded-lg transition ${activeTab === 'all' ? 'bg-white/[0.06] text-white' : 'text-neutral-400 hover:bg-white/[0.03]'}`}
+              >
+                All Bets
+              </button>
+              <button
+                onClick={() => setActiveTab('mine')}
+                className={`text-sm px-3 py-2 rounded-lg transition ${activeTab === 'mine' ? 'bg-white/[0.06] text-white' : 'text-neutral-400 hover:bg-white/[0.03]'}`}
+              >
+                My Bets
+              </button>
             </div>
-            <div className="mt-2 divide-y divide-white/10 max-h-96 overflow-y-auto">
-              {recentFlips.length === 0 ? (
+            <div className="mt-2 divide-y divide-white/10 max-h-[28rem] overflow-y-auto">
+              {displayedFlips.length === 0 ? (
                 <div className="px-4 py-6 text-center text-neutral-500 text-sm">
-                  No recent flips
+                  {activeTab === 'mine' && !address ? 'Connect wallet to see your bets' : 'No recent flips'}
                 </div>
               ) : (
-                recentFlips.map((flip, i) => (
-                  <div key={i} className="px-4 py-3 flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="text-xs text-neutral-400">{formatAddress(flip.player)}</div>
-                      <div className="mt-2 grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <div className="text-neutral-400 text-xs">Bet</div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full overflow-hidden shadow">
-                              <Image
-                                src={flip.choice === 0 ? '/Heads.png' : '/Tails.png'}
-                                alt={flip.choice === 0 ? 'Heads' : 'Tails'}
-                                width={28}
-                                height={28}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                            {flip.choice === 0 ? 'Heads' : 'Tails'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-neutral-400 text-xs">Result</div>
-                          <div className={`${flip.didWin === true ? 'text-emerald-300' : flip.didWin === false ? 'text-rose-300' : 'text-yellow-300'}`}>
-                            {flip.didWin === undefined ? 'Pending' : flip.didWin ? 'Win' : 'Loss'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-neutral-400 text-xs">Amount</div>
-                          <div className="flex items-center gap-1">
-                            <span className="inline-block h-2 w-2 rounded-full bg-emerald-300" />
-                            {Number(formatEther(flip.betAmount)).toFixed(4)}
-                          </div>
-                          {flip.payout && flip.didWin && (
-                            <div className="text-xs text-emerald-300/90">+{Number(formatEther(flip.payout)).toFixed(4)}</div>
-                          )}
+                displayedFlips.map((flip, i) => (
+                  <div key={i} className="px-4 py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-neutral-400 truncate max-w-[60%]">{formatAddress(flip.player)}</div>
+                      <div className="text-xs text-neutral-500 whitespace-nowrap">{formatTimeAgo(flip.timestamp)}</div>
+                    </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Image
+                          src={flip.choice === 0 ? '/Heads.png' : '/Tails.png'}
+                          alt={flip.choice === 0 ? 'Heads' : 'Tails'}
+                          width={36}
+                          height={36}
+                          className="h-9 w-9 rounded-full object-contain shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="text-neutral-400 text-[11px] leading-none">Bet</div>
+                          <div className="text-sm truncate">{flip.choice === 0 ? 'Heads' : 'Tails'}</div>
                         </div>
                       </div>
+                      <div className="min-w-0">
+                        <div className="text-neutral-400 text-[11px] leading-none">Result</div>
+                        <div className={`${flip.didWin === true ? 'text-emerald-300' : flip.didWin === false ? 'text-rose-300' : 'text-yellow-300'} text-sm`}> 
+                          {flip.didWin === undefined ? 'Pending' : flip.didWin ? 'Win' : 'Loss'}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-neutral-400 text-[11px] leading-none">Amount</div>
+                        <div className="flex items-center gap-1 text-sm whitespace-nowrap">
+                          <span className="inline-block h-2 w-2 rounded-full bg-emerald-300" />
+                          {Number(formatEther(flip.betAmount)).toFixed(4)}
+                        </div>
+                        {flip.payout && flip.didWin && (
+                          <div className="text-xs text-emerald-300/90 whitespace-nowrap">+{Number(formatEther(flip.payout)).toFixed(4)}</div>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-xs text-neutral-500 whitespace-nowrap">{formatTimeAgo(flip.timestamp)}</div>
                   </div>
                 ))
               )}
@@ -294,13 +362,13 @@ export default function CoinflipPage() {
         </aside>
 
         {/* Main game panel */}
-        <section className="col-span-12 md:col-span-9">
+        <section className="col-span-12 md:col-span-8">
           <div className="flex flex-col items-center">
             {/* Floating coin visual */}
-            <div className="relative h-80 w-full flex items-center justify-center">
+            <div className="relative h-56 md:h-72 w-full flex items-center justify-center">
               
               {/* Coin image in center */}
-              <div className={`relative z-10 w-72 h-72 rounded-full overflow-hidden shadow-2xl ${isFlipping ? 'animate-spin' : ''}`}>
+              <div className={`relative z-10 w-48 h-48 md:w-64 md:h-64 rounded-full overflow-hidden shadow-2xl ${isFlipping ? 'animate-spin' : ''}`}>
                 <Image
                   src={selected === 'Heads' ? '/Heads.png' : '/Tails.png'}
                   alt={selected}
@@ -319,10 +387,10 @@ export default function CoinflipPage() {
             </div>
 
             {/* Choice cards */}
-            <div className="mt-4 grid w-full grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="mt-3 grid w-full grid-cols-1 md:grid-cols-2 gap-3 md:gap-5">
               {/* Heads card */}
               <div
-                className={`rounded-3xl border p-6 backdrop-blur-sm transition hover:translate-y-[-2px] duration-300 select-none cursor-pointer ${
+                className={`rounded-3xl border p-5 md:p-6 backdrop-blur-sm transition hover:translate-y-[-2px] duration-300 select-none cursor-pointer ${
                   selected === 'Heads'
                     ? 'border-emerald-400/40 bg-emerald-500/5 ring-1 ring-emerald-400/30'
                     : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.04]'
@@ -330,8 +398,8 @@ export default function CoinflipPage() {
                 onClick={() => setSelected('Heads')}
               >
                 <SectionTitle>Heads</SectionTitle>
-                <div className="mt-6 flex items-center justify-between">
-                  <div className="h-24 w-24 rounded-full overflow-hidden">
+                <div className="mt-3 md:mt-5 flex items-center justify-between">
+                  <div className="h-16 w-16 md:h-20 md:w-20 rounded-full overflow-hidden">
                     <Image
                       src="/Heads.png"
                       alt="Heads"
@@ -346,7 +414,7 @@ export default function CoinflipPage() {
 
               {/* Tails card */}
               <div
-                className={`rounded-3xl border p-6 backdrop-blur-sm transition hover:translate-y-[-2px] duration-300 select-none cursor-pointer ${
+                className={`rounded-3xl border p-5 md:p-6 backdrop-blur-sm transition hover:translate-y-[-2px] duration-300 select-none cursor-pointer ${
                   selected === 'Tails'
                     ? 'border-emerald-400/40 bg-emerald-500/5 ring-1 ring-emerald-400/30'
                     : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.04]'
@@ -354,8 +422,8 @@ export default function CoinflipPage() {
                 onClick={() => setSelected('Tails')}
               >
                 <SectionTitle>Tails</SectionTitle>
-                <div className="mt-6 flex items-center justify-between">
-                  <div className="h-24 w-24 rounded-full overflow-hidden">
+                <div className="mt-3 md:mt-5 flex items-center justify-between">
+                  <div className="h-16 w-16 md:h-20 md:w-20 rounded-full overflow-hidden">
                     <Image
                       src="/Tails.png"
                       alt="Tails"
@@ -370,7 +438,7 @@ export default function CoinflipPage() {
             </div>
 
             {/* Amount controls */}
-            <div className="mt-6 w-full grid grid-cols-2 md:grid-cols-6 gap-3">
+            <div className="mt-5 w-full grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-3">
               {[
                 { label: '0.01', onClick: () => setAmount('0.01') },
                 { label: '0.1', onClick: () => setAmount('0.1') },
@@ -381,14 +449,14 @@ export default function CoinflipPage() {
                 <button
                   key={i}
                   onClick={b.onClick}
-                  className="col-span-1 rounded-xl border border-white/10 bg-white/[0.02] py-3 text-sm text-neutral-200 hover:bg-white/[0.05] transition"
+                  className="col-span-1 rounded-xl border border-white/10 bg-white/[0.02] py-2 md:py-2.5 text-xs md:text-sm text-neutral-200 hover:bg-white/[0.05] transition"
                 >
                   {b.label}
                 </button>
               ))}
 
               <div className="col-span-2 md:col-span-1">
-                <div className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-neutral-200 focus-within:border-emerald-400/40">
+                <div className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 md:px-4 py-2.5 md:py-3 text-sm text-neutral-200 focus-within:border-emerald-400/40">
                   <input
                     className="w-full bg-transparent outline-none placeholder:text-neutral-500"
                     placeholder="Amount"
@@ -407,11 +475,11 @@ export default function CoinflipPage() {
             </div>
 
             {/* Flip button */}
-            <div className="mt-6 w-full">
+            <div className="mt-5 w-full">
               <button 
                 onClick={flip}
                 disabled={!address || !amount || Number(amount) < minBet || Number(amount) > maxBet || isFlipping}
-                className="w-full rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 transition text-black font-semibold py-4 text-lg flex items-center justify-center gap-2 shadow-[0_0_40px_-10px_rgba(16,185,129,0.6)] disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 transition text-black font-semibold py-3 md:py-3.5 text-base md:text-lg flex items-center justify-center gap-2 shadow-[0_0_40px_-10px_rgba(16,185,129,0.6)] disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isFlipping ? (
                   <>FLIPPING COIN...</>
