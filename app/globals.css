@@ -103,6 +103,9 @@
   .mt-fluid-4 { margin-top: var(--space-4); }
   .mt-fluid-5 { margin-top: var(--space-5); }
   .mt-fluid-6 { margin-top: var(--space-6); }
+  .mt-fluid-8 { margin-top: var(--space-8); }
+  .mt-fluid-10 { margin-top: var(--space-10); }
+  .mt-fluid-12 { margin-top: var(--space-12); }
   
   .mb-fluid-1 { margin-bottom: var(--space-1); }
   .mb-fluid-2 { margin-bottom: var(--space-2); }

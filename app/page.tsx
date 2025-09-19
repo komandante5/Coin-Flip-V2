@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { ConnectWalletButton } from '@/components/connect-wallet-button';
 import { useWriteContract, usePublicClient, useReadContract, useAccount } from 'wagmi';
 import { parseEther, parseEventLogs, formatEther, type Abi, parseAbiItem } from 'viem';
-import { ChevronRight, Menu, X } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import Image from "next/image";
+import { PageLayout } from '@/components/layout/page-layout';
+import { SectionTitle } from '@/components/ui/section-title';
+import { Pill } from '@/components/ui/pill';
 
 import coinFlipJson from '../src/abi/CoinFlip.json';
 import mockVrfJson from '../src/abi/MockVRF.json';
@@ -31,27 +33,6 @@ interface FlipEvent {
   timestamp: number;
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="text-fluid-lg lg:text-fluid-xl font-semibold tracking-wide uppercase text-neutral-200 text-center">
-      {children}
-    </div>
-  );
-}
-
-function Pill({ active, children }: { active?: boolean; children: React.ReactNode }) {
-  return (
-    <div
-      className={`px-fluid-3 py-fluid-2 rounded-full text-fluid-sm transition-all duration-200 border items-center inline-flex gap-fluid-2 select-none ${
-        active
-          ? "bg-emerald-500/10 border-emerald-400/40 text-emerald-300"
-          : "bg-white/[0.02] border-white/10 text-neutral-300 hover:bg-white/[0.04]"
-      }`}
-    >
-      {children}
-    </div>
-  );
-}
 
 export default function CoinflipPage() {
   const [selected, setSelected] = useState<CoinSide>('Heads');
@@ -61,11 +42,6 @@ export default function CoinflipPage() {
   const [isSpinning, setIsSpinning] = useState(false);
   const [recentFlips, setRecentFlips] = useState<FlipEvent[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'mine'>('all');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isNavVisible, setIsNavVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-
-  const headerRef = useRef<HTMLElement | null>(null);
   const contentWrapperRef = useRef<HTMLDivElement | null>(null);
 
   const { writeContractAsync } = useWriteContract();
@@ -195,29 +171,6 @@ export default function CoinflipPage() {
     return () => clearInterval(id);
   }, [refetchStats]);
 
-  // Auto-hide navigation on scroll
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      
-      if (currentScrollY < 10) {
-        // Always show nav when at top
-        setIsNavVisible(true);
-      } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
-        // Hide nav when scrolling down (after 100px)
-        setIsNavVisible(false);
-        setIsMobileMenuOpen(false); // Close mobile menu when hiding
-      } else if (currentScrollY < lastScrollY - 10) {
-        // Show nav when scrolling up (with 10px threshold)
-        setIsNavVisible(true);
-      }
-      
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
 
 
   function handleCoinSelection(side: CoinSide) {
@@ -305,114 +258,7 @@ export default function CoinflipPage() {
   }, [activeTab, address, recentFlips]);
 
   return (
-    <div className="min-h-screen w-full bg-[#0c0f10] text-white flex flex-col">
-      {/* Ambient background blobs - responsive sizing */}
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute -top-[10vw] -left-[10vw] h-[30vw] w-[30vw] max-h-[400px] max-w-[400px] rounded-full blur-[120px] opacity-30 bg-emerald-400/30" />
-        <div className="absolute top-[15vh] right-[5vw] h-[35vw] w-[35vw] max-h-[500px] max-w-[500px] rounded-full blur-[140px] opacity-20 bg-teal-400/20" />
-      </div>
-
-      {/* Top bar */}
-      <header ref={headerRef} className={`fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#0c0f10]/90 backdrop-blur-md transition-transform duration-300 ${
-        isNavVisible ? 'translate-y-0' : '-translate-y-full'
-      }`} style={{ height: 'var(--nav-height)' }}>
-        <div className="mx-auto h-full flex items-center px-fluid-4 lg:px-fluid-6 xl:px-fluid-8" style={{ maxWidth: 'min(90vw, var(--container-3xl))' }}>
-          {/* Mobile Layout */}
-          <div className="flex md:hidden items-center justify-between w-full">
-            <div className="flex items-center gap-fluid-3">
-              <Image
-                src="/coin_flip_logo_gif_transparent.gif"
-                alt="Dizzio Logo"
-                width={24}
-                height={24}
-                className="object-contain"
-                style={{ height: 'clamp(24px, 3vw + 16px, 32px)', width: 'auto' }}
-              />
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 rounded-md hover:bg-white/[0.04] transition-all duration-200"
-              >
-                {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-              </button>
-            </div>
-
-            <div className="scale-90 origin-right">
-              <ConnectWalletButton />
-            </div>
-          </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden md:flex items-center gap-fluid-3 w-full">
-            <div className="flex items-center gap-fluid-3">
-              <Image
-                src="/coin_flip_logo_gif_transparent.gif"
-                alt="Dizzio Logo"
-                width={40}
-                height={40}
-                className="object-contain"
-                style={{ height: 'clamp(32px, 3vw + 20px, 48px)', width: 'auto' }}
-              />
-              <span className="font-semibold tracking-tight text-fluid-xl lg:text-fluid-2xl">Dizzio</span>
-            </div>
-
-            <nav className="ml-auto mr-auto flex items-center gap-fluid-2 text-fluid-base text-neutral-300">
-              {[
-                { label: "Coinflip", href: "/" },
-                { label: "Account", href: "#" },
-                { label: "Leaderboard", href: "/leaderboard" },
-                { label: "Rewards", href: "/rewards" },
-                { label: "On‑chain", href: "/onchain" },
-              ].map((item) => (
-                <a
-                  key={item.label}
-                  className={`px-fluid-3 lg:px-fluid-4 py-fluid-2 rounded-md hover:bg-white/[0.04] transition-all duration-200 ${
-                    item.label === "Coinflip" ? "text-white bg-white/[0.06]" : ""
-                  }`}
-                  href={item.href}
-                >
-                  {item.label}
-                </a>
-              ))}
-            </nav>
-
-            <div className="ml-auto">
-              <ConnectWalletButton />
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile Navigation Menu */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden absolute top-full left-0 w-full bg-[#0c0f10]/95 border-b border-white/10 backdrop-blur-md">
-            <nav className="px-fluid-4 py-fluid-3 space-y-2">
-              {[
-                { label: "Coinflip", href: "/" },
-                { label: "Account", href: "#" },
-                { label: "Leaderboard", href: "/leaderboard" },
-                { label: "Rewards", href: "/rewards" },
-                { label: "On‑chain", href: "/onchain" },
-              ].map((item) => (
-                <a
-                  key={item.label}
-                  className={`flex items-center px-fluid-3 py-fluid-3 rounded-lg hover:bg-white/[0.04] transition-all duration-200 text-fluid-base ${
-                    item.label === "Coinflip" ? "text-white bg-white/[0.06]" : "text-neutral-300"
-                  }`}
-                  href={item.href}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {item.label}
-                </a>
-              ))}
-            </nav>
-          </div>
-        )}
-      </header>
-
-      {/* Content wrapper - responsive container */}
-      <div
-        ref={contentWrapperRef}
-        className="flex flex-col flex-1 pt-[var(--nav-height)]"
-      >
+    <PageLayout>
       <main className="relative z-10 mx-auto w-full px-fluid-4 lg:px-fluid-6 xl:px-fluid-8 py-fluid-4 lg:py-fluid-6 grid grid-cols-12 gap-fluid-4 lg:gap-fluid-6 flex-1" style={{ maxWidth: 'min(98vw, var(--container-3xl))' }}>
         {/* Main game panel - appears first on mobile, second on desktop */}
         <section className="col-span-12 md:col-span-8 lg:col-span-8 xl:col-span-8 order-1 md:order-2">
@@ -658,13 +504,6 @@ export default function CoinflipPage() {
         </aside>
       </main>
 
-      <footer className="relative z-10 mx-auto w-full px-fluid-4 lg:px-fluid-6 xl:px-fluid-8 py-fluid-4 text-fluid-xs text-neutral-500 mt-auto" style={{ maxWidth: 'min(95vw, var(--container-3xl))' }}>
-        <div className="text-center">
-          <span className="opacity-70">Coin Flip V2 • Powered by Abstract Network & VRF • On-chain Gambling</span>
-        </div>
-      </footer>
-      </div>
-
       {/* animations */}
       <style jsx>{`
         .animate-spin-slow { animation: spin 16s linear infinite; }
@@ -675,6 +514,6 @@ export default function CoinflipPage() {
           100% { transform: rotateY(180deg) scaleX(-1); }
         }
       `}</style>
-    </div>
+    </PageLayout>
   );
 }
