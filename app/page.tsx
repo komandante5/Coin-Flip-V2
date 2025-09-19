@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { ConnectWalletButton } from '@/components/connect-wallet-button';
 import { useWriteContract, usePublicClient, useReadContract, useAccount } from 'wagmi';
 import { parseEther, parseEventLogs, formatEther, type Abi, parseAbiItem } from 'viem';
@@ -33,7 +33,7 @@ interface FlipEvent {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-lg md:text-xl font-semibold tracking-wide uppercase text-neutral-200 text-center">
+    <div className="text-fluid-lg lg:text-fluid-xl font-semibold tracking-wide uppercase text-neutral-200 text-center">
       {children}
     </div>
   );
@@ -42,7 +42,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function Pill({ active, children }: { active?: boolean; children: React.ReactNode }) {
   return (
     <div
-      className={`px-3 md:px-4 py-1.5 md:py-2 rounded-full text-xs md:text-sm transition border items-center inline-flex gap-2 select-none ${
+      className={`px-fluid-3 py-fluid-2 rounded-full text-fluid-sm transition-all duration-200 border items-center inline-flex gap-fluid-2 select-none ${
         active
           ? "bg-emerald-500/10 border-emerald-400/40 text-emerald-300"
           : "bg-white/[0.02] border-white/10 text-neutral-300 hover:bg-white/[0.04]"
@@ -55,6 +55,7 @@ function Pill({ active, children }: { active?: boolean; children: React.ReactNod
 
 export default function CoinflipPage() {
   const [selected, setSelected] = useState<CoinSide>('Heads');
+  const [selectedForUI, setSelectedForUI] = useState<CoinSide>('Heads');
   const [amount, setAmount] = useState<string>("0.01");
   const [isFlipping, setIsFlipping] = useState(false);
   const [isSpinning, setIsSpinning] = useState(false);
@@ -63,6 +64,9 @@ export default function CoinflipPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+
+  const headerRef = useRef<HTMLElement | null>(null);
+  const contentWrapperRef = useRef<HTMLDivElement | null>(null);
 
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
@@ -215,22 +219,26 @@ export default function CoinflipPage() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScrollY]);
 
+
   function handleCoinSelection(side: CoinSide) {
     // Only animate if we're actually changing sides
-    if (selected === side) return;
+    if (selectedForUI === side) return;
+    
+    // Immediately highlight the button for UI feedback
+    setSelectedForUI(side);
     
     // Trigger spinning animation
     setIsSpinning(true);
     
-    // Change the selected side halfway through the animation (when coin is edge-on)
+    // Change the coin image halfway through the animation (when coin is edge-on)
     setTimeout(() => {
       setSelected(side);
-    }, 500);
+    }, 375); // Half of 750ms
     
-    // Stop spinning after 1 second
+    // Stop spinning after 0.75 seconds
     setTimeout(() => {
       setIsSpinning(false);
-    }, 1000);
+    }, 750);
   }
 
   async function flip() {
@@ -297,33 +305,34 @@ export default function CoinflipPage() {
   }, [activeTab, address, recentFlips]);
 
   return (
-    <div className="min-h-screen w-full bg-[#0c0f10] text-white overflow-hidden pt-14 md:pt-16">
-      {/* Ambient background blobs */}
+    <div className="min-h-screen w-full bg-[#0c0f10] text-white flex flex-col">
+      {/* Ambient background blobs - responsive sizing */}
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full blur-[120px] opacity-30 bg-emerald-400/30" />
-        <div className="absolute top-40 right-10 h-96 w-96 rounded-full blur-[140px] opacity-20 bg-teal-400/20" />
+        <div className="absolute -top-[10vw] -left-[10vw] h-[30vw] w-[30vw] max-h-[400px] max-w-[400px] rounded-full blur-[120px] opacity-30 bg-emerald-400/30" />
+        <div className="absolute top-[15vh] right-[5vw] h-[35vw] w-[35vw] max-h-[500px] max-w-[500px] rounded-full blur-[140px] opacity-20 bg-teal-400/20" />
       </div>
 
       {/* Top bar */}
-      <header className={`fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#0c0f10]/90 backdrop-blur-md transition-transform duration-300 ${
+      <header ref={headerRef} className={`fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#0c0f10]/90 backdrop-blur-md transition-transform duration-300 ${
         isNavVisible ? 'translate-y-0' : '-translate-y-full'
-      }`}>
-        <div className="mx-auto max-w-[1300px] px-3 md:px-4 py-2 md:py-3">
+      }`} style={{ height: 'var(--nav-height)' }}>
+        <div className="mx-auto h-full flex items-center px-fluid-4 lg:px-fluid-6 xl:px-fluid-8" style={{ maxWidth: 'min(90vw, var(--container-3xl))' }}>
           {/* Mobile Layout */}
-          <div className="flex md:hidden items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex md:hidden items-center justify-between w-full">
+            <div className="flex items-center gap-fluid-3">
               <Image
                 src="/coin_flip_logo_gif_transparent.gif"
                 alt="Dizzio Logo"
                 width={24}
                 height={24}
-                className="h-6 w-6 object-contain"
+                className="object-contain"
+                style={{ height: 'clamp(24px, 3vw + 16px, 32px)', width: 'auto' }}
               />
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-1.5 rounded-md hover:bg-white/[0.04] transition"
+                className="p-2 rounded-md hover:bg-white/[0.04] transition-all duration-200"
               >
-                {isMobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+                {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
             </div>
 
@@ -333,19 +342,20 @@ export default function CoinflipPage() {
           </div>
 
           {/* Desktop Layout */}
-          <div className="hidden md:flex items-center gap-3">
-            <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-fluid-3 w-full">
+            <div className="flex items-center gap-fluid-3">
               <Image
                 src="/coin_flip_logo_gif_transparent.gif"
                 alt="Dizzio Logo"
                 width={40}
                 height={40}
-                className="h-10 w-10 object-contain"
+                className="object-contain"
+                style={{ height: 'clamp(32px, 3vw + 20px, 48px)', width: 'auto' }}
               />
-              <span className="font-semibold tracking-tight text-xl">Dizzio</span>
+              <span className="font-semibold tracking-tight text-fluid-xl lg:text-fluid-2xl">Dizzio</span>
             </div>
 
-            <nav className="ml-6 flex items-center gap-1 text-sm text-neutral-300">
+            <nav className="ml-auto mr-auto flex items-center gap-fluid-2 text-fluid-base text-neutral-300">
               {[
                 { label: "Coinflip", href: "/" },
                 { label: "Account", href: "#" },
@@ -355,8 +365,8 @@ export default function CoinflipPage() {
               ].map((item) => (
                 <a
                   key={item.label}
-                  className={`px-3 py-1.5 rounded-md hover:bg-white/[0.04] transition ${
-                    item.label === "Coinflip" ? "text-white" : ""
+                  className={`px-fluid-3 lg:px-fluid-4 py-fluid-2 rounded-md hover:bg-white/[0.04] transition-all duration-200 ${
+                    item.label === "Coinflip" ? "text-white bg-white/[0.06]" : ""
                   }`}
                   href={item.href}
                 >
@@ -374,7 +384,7 @@ export default function CoinflipPage() {
         {/* Mobile Navigation Menu */}
         {isMobileMenuOpen && (
           <div className="md:hidden absolute top-full left-0 w-full bg-[#0c0f10]/95 border-b border-white/10 backdrop-blur-md">
-            <nav className="px-4 py-3 space-y-1">
+            <nav className="px-fluid-4 py-fluid-3 space-y-2">
               {[
                 { label: "Coinflip", href: "/" },
                 { label: "Account", href: "#" },
@@ -384,7 +394,7 @@ export default function CoinflipPage() {
               ].map((item) => (
                 <a
                   key={item.label}
-                  className={`flex items-center px-3 py-2.5 rounded-lg hover:bg-white/[0.04] transition text-sm ${
+                  className={`flex items-center px-fluid-3 py-fluid-3 rounded-lg hover:bg-white/[0.04] transition-all duration-200 text-fluid-base ${
                     item.label === "Coinflip" ? "text-white bg-white/[0.06]" : "text-neutral-300"
                   }`}
                   href={item.href}
@@ -398,16 +408,20 @@ export default function CoinflipPage() {
         )}
       </header>
 
-      {/* Content */}
-      <main className="relative z-10 mx-auto max-w-[1300px] px-4 py-4 grid grid-cols-12 gap-4">
+      {/* Content wrapper - responsive container */}
+      <div
+        ref={contentWrapperRef}
+        className="flex flex-col flex-1 pt-[var(--nav-height)]"
+      >
+      <main className="relative z-10 mx-auto w-full px-fluid-4 lg:px-fluid-6 xl:px-fluid-8 py-fluid-4 lg:py-fluid-6 grid grid-cols-12 gap-fluid-4 lg:gap-fluid-6 flex-1" style={{ maxWidth: 'min(98vw, var(--container-3xl))' }}>
         {/* Main game panel - appears first on mobile, second on desktop */}
-        <section className="col-span-12 md:col-span-8 order-1 md:order-2">
+        <section className="col-span-12 md:col-span-8 lg:col-span-8 xl:col-span-8 order-1 md:order-2">
           <div className="flex flex-col items-center">
-            {/* Floating coin visual */}
-            <div className="relative h-40 md:h-48 w-full flex items-center justify-center">
+            {/* Floating coin visual - responsive sizing */}
+            <div className="relative w-full flex items-center justify-center" style={{ height: 'clamp(120px, 12vw + 60px, 180px)' }}>
               
               {/* Coin image in center */}
-              <div className={`relative z-10 w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden shadow-2xl ${isFlipping ? 'animate-spin' : ''} ${isSpinning ? 'animate-coin-spin' : ''}`}>
+              <div className={`relative z-10 rounded-full overflow-hidden shadow-2xl ${isFlipping ? 'animate-spin' : ''} ${isSpinning ? 'animate-coin-spin' : ''}`} style={{ width: 'var(--coin-size)', height: 'var(--coin-size)' }}>
                 <Image
                   src={selected === 'Heads' ? '/Heads.png' : '/Tails.png'}
                   alt={selected}
@@ -418,92 +432,109 @@ export default function CoinflipPage() {
               </div>
               
               {isFlipping && (
-                <div className="absolute text-center z-20 mt-32">
-                  <div className="text-xl font-bold text-emerald-300">Flipping...</div>
-                  <div className="text-sm text-neutral-400 mt-1">Waiting for result</div>
+                <div className="absolute text-center z-20" style={{ marginTop: 'calc(var(--coin-size) + var(--space-4))' }}>
+                  <div className="text-fluid-xl font-bold text-emerald-300">Flipping...</div>
+                  <div className="text-fluid-sm text-neutral-400 mt-1">Waiting for result</div>
                 </div>
               )}
             </div>
 
             {/* Choice cards */}
-            <div className="mt-2 grid w-full grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
+            <div className="mt-fluid-4 grid w-full grid-cols-2 gap-fluid-3 max-w-2xl mx-auto">
               {/* Heads card */}
               <div
-                className={`rounded-2xl border p-4 md:p-5 min-h-[80px] md:min-h-[100px] backdrop-blur-sm transition hover:translate-y-[-2px] duration-300 select-none cursor-pointer ${
-                  selected === 'Heads'
-                    ? 'border-emerald-400/40 bg-emerald-500/5 ring-1 ring-emerald-400/30'
+                className={`rounded-xl border p-fluid-4 backdrop-blur-sm transition-all hover:translate-y-[-1px] duration-300 select-none cursor-pointer ${
+                  selectedForUI === 'Heads'
+                    ? 'border-emerald-400/40 bg-emerald-500/8 ring-1 ring-emerald-400/30'
                     : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.04]'
                 }`}
+                style={{ minHeight: 'var(--card-min-height)' }}
                 onClick={() => handleCoinSelection('Heads')}
               >
-                <SectionTitle>Heads</SectionTitle>
-                <div className="mt-2 md:mt-3 flex items-center justify-between">
-                  <div className="h-12 w-12 md:h-16 md:w-16 rounded-full overflow-hidden">
-                    <Image
-                      src="/Heads.png"
-                      alt="Heads"
-                      width={128}
-                      height={128}
-                      className="w-full h-full object-contain"
-                    />
+                <div className="text-center">
+                  <SectionTitle>HEADS</SectionTitle>
+                  <div className="mt-fluid-2 flex items-center justify-center">
+                    <div className="rounded-full overflow-hidden" style={{ width: 'clamp(40px, 4vw + 24px, 56px)', height: 'clamp(40px, 4vw + 24px, 56px)' }}>
+                      <Image
+                        src="/Heads.png"
+                        alt="Heads"
+                        width={96}
+                        height={96}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
                   </div>
-                  <Pill active={selected === 'Heads'}>2.00x</Pill>
+                  <div className="mt-fluid-2">
+                    <Pill active={selectedForUI === 'Heads'}>2.00x</Pill>
+                  </div>
                 </div>
               </div>
 
               {/* Tails card */}
               <div
-                className={`rounded-2xl border p-4 md:p-5 min-h-[80px] md:min-h-[100px] backdrop-blur-sm transition hover:translate-y-[-2px] duration-300 select-none cursor-pointer ${
-                  selected === 'Tails'
-                    ? 'border-emerald-400/40 bg-emerald-500/5 ring-1 ring-emerald-400/30'
+                className={`rounded-xl border p-fluid-4 backdrop-blur-sm transition-all hover:translate-y-[-1px] duration-300 select-none cursor-pointer ${
+                  selectedForUI === 'Tails'
+                    ? 'border-emerald-400/40 bg-emerald-500/8 ring-1 ring-emerald-400/30'
                     : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.04]'
                 }`}
+                style={{ minHeight: 'var(--card-min-height)' }}
                 onClick={() => handleCoinSelection('Tails')}
               >
-                <SectionTitle>Tails</SectionTitle>
-                <div className="mt-2 md:mt-3 flex items-center justify-between">
-                  <div className="h-12 w-12 md:h-16 md:w-16 rounded-full overflow-hidden">
-                    <Image
-                      src="/Tails.png"
-                      alt="Tails"
-                      width={128}
-                      height={128}
-                      className="w-full h-full object-contain"
-                    />
+                <div className="text-center">
+                  <SectionTitle>TAILS</SectionTitle>
+                  <div className="mt-fluid-2 flex items-center justify-center">
+                    <div className="rounded-full overflow-hidden" style={{ width: 'clamp(40px, 4vw + 24px, 56px)', height: 'clamp(40px, 4vw + 24px, 56px)' }}>
+                      <Image
+                        src="/Tails.png"
+                        alt="Tails"
+                        width={96}
+                        height={96}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
                   </div>
-                  <Pill active={selected === 'Tails'}>2.00x</Pill>
+                  <div className="mt-fluid-2">
+                    <Pill active={selectedForUI === 'Tails'}>2.00x</Pill>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Amount controls */}
-            <div className="mt-4 w-full max-w-xl mx-auto">
+            <div className="mt-fluid-5 lg:mt-fluid-6 w-full mx-auto" style={{ maxWidth: 'min(100%, 500px)' }}>
               {/* Custom amount input - more prominent */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-neutral-300 mb-2 text-center">
+              <div className="mb-3">
+                <label className="block text-fluid-sm font-medium text-neutral-300 mb-2 text-center">
                   Bet Amount (ETH)
                 </label>
                 <div className="relative">
-                  <div className="w-full rounded-xl border-2 border-white/20 bg-white/[0.03] px-4 py-3 text-lg text-white focus-within:border-emerald-400/60 focus-within:bg-white/[0.05] transition-all duration-200">
-                    <input
-                      className="w-full bg-transparent outline-none placeholder:text-neutral-500 text-center text-lg font-medium"
-                      placeholder="0.01"
-                      type="number"
-                      step="0.0001"
-                      min={minBet}
-                      max={maxBet}
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                    />
+                  <div className="w-full rounded-lg border border-white/20 bg-white/[0.03] px-fluid-3 py-fluid-3 text-white focus-within:border-emerald-400/50 focus-within:bg-white/[0.05] transition-all duration-200">
+                    <div className="flex items-center justify-center gap-2 max-w-fit mx-auto">
+                      {/* Ethereum Icon */}
+                      <svg className="w-5 h-5 text-neutral-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/>
+                      </svg>
+                      <input
+                        className="bg-transparent outline-none placeholder:text-neutral-500 text-fluid-base font-medium no-spinners min-w-0"
+                        placeholder="0.01"
+                        type="number"
+                        step="0.0001"
+                        min={minBet}
+                        max={maxBet}
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                        style={{ width: `${Math.max(amount.length, 4)}ch` }}
+                      />
+                    </div>
                   </div>
-                  <div className="mt-2 text-center text-xs text-neutral-400">
+                  <div className="mt-1 text-center text-fluid-xs text-neutral-400">
                     Min: {minBet.toFixed(4)} ETH • Max: {maxBet.toFixed(4)} ETH
                   </div>
                 </div>
               </div>
 
               {/* Quick bet buttons */}
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-5 gap-fluid-2">
                 {[
                   { label: '0.01', onClick: () => setAmount('0.01') },
                   { label: '0.1', onClick: () => setAmount('0.1') },
@@ -514,10 +545,10 @@ export default function CoinflipPage() {
                   <button
                     key={i}
                     onClick={b.onClick}
-                    className={`rounded-lg border-2 py-2 px-3 text-xs font-medium transition-all duration-200 hover:scale-105 ${
+                    className={`rounded-md border py-fluid-2 px-fluid-2 text-fluid-xs font-medium transition-all duration-200 hover:scale-[1.02] ${
                       amount === b.label || (b.label === 'MAX' && amount === String(maxBet.toFixed(4)))
-                        ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-300'
-                        : 'border-white/20 bg-white/[0.02] text-neutral-200 hover:bg-white/[0.05] hover:border-white/30'
+                        ? 'border-emerald-400/50 bg-emerald-500/10 text-emerald-300'
+                        : 'border-white/15 bg-white/[0.02] text-neutral-200 hover:bg-white/[0.04] hover:border-white/25'
                     }`}
                   >
                     {b.label}
@@ -527,25 +558,26 @@ export default function CoinflipPage() {
             </div>
 
             {/* Flip button */}
-            <div className="mt-4 w-full max-w-md mx-auto">
+            <div className="mt-fluid-4 lg:mt-fluid-5 w-full mx-auto" style={{ maxWidth: 'min(100%, 400px)' }}>
               <button 
                 onClick={flip}
                 disabled={!address || !amount || Number(amount) < minBet || Number(amount) > maxBet || isFlipping}
-                className="w-full rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 hover:from-emerald-400 hover:via-teal-300 hover:to-emerald-400 transition-all duration-300 text-black font-bold py-4 md:py-5 text-xl md:text-2xl flex items-center justify-center gap-3 shadow-[0_0_60px_-15px_rgba(16,185,129,0.8)] hover:shadow-[0_0_80px_-10px_rgba(16,185,129,1)] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 relative overflow-hidden group"
+                className="w-full rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 hover:from-emerald-400 hover:via-teal-300 hover:to-emerald-400 transition-all duration-300 text-black font-bold text-fluid-lg lg:text-fluid-xl flex items-center justify-center gap-fluid-3 shadow-[0_0_60px_-15px_rgba(16,185,129,0.8)] hover:shadow-[0_0_80px_-10px_rgba(16,185,129,1)] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 relative overflow-hidden group"
+                style={{ height: 'var(--button-height)' }}
               >
                 {/* Animated background shimmer */}
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                 
                 {isFlipping ? (
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
                     <span>FLIPPING...</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <span>FLIP</span>
-                    <div className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center">
-                      <ChevronRight size={16} />
+                    <div className="w-5 h-5 rounded-full bg-black/20 flex items-center justify-center">
+                      <ChevronRight size={14} />
                     </div>
                   </div>
                 )}
@@ -555,62 +587,66 @@ export default function CoinflipPage() {
         </section>
 
         {/* Left rail: recent bets - appears second on mobile, first on desktop */}
-        <aside className="col-span-12 md:col-span-4 order-2 md:order-1">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02]">
-            <div className="flex gap-2 px-4 pt-3">
+        <aside className="col-span-12 md:col-span-4 lg:col-span-4 xl:col-span-4 order-2 md:order-1">
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] h-fit" style={{ maxHeight: 'calc(100vh - var(--nav-height) - var(--space-8))' }}>
+            <div className="flex gap-fluid-1 px-fluid-3 pt-fluid-3">
               <button
                 onClick={() => setActiveTab('all')}
-                className={`text-sm px-3 py-2 rounded-lg transition ${activeTab === 'all' ? 'bg-white/[0.06] text-white' : 'text-neutral-400 hover:bg-white/[0.03]'}`}
+                className={`text-fluid-xs px-fluid-3 py-fluid-2 rounded-md transition-all duration-200 ${activeTab === 'all' ? 'bg-white/[0.06] text-white' : 'text-neutral-400 hover:bg-white/[0.03]'}`}
               >
                 All Bets
               </button>
               <button
                 onClick={() => setActiveTab('mine')}
-                className={`text-sm px-3 py-2 rounded-lg transition ${activeTab === 'mine' ? 'bg-white/[0.06] text-white' : 'text-neutral-400 hover:bg-white/[0.03]'}`}
+                className={`text-fluid-xs px-fluid-3 py-fluid-2 rounded-md transition-all duration-200 ${activeTab === 'mine' ? 'bg-white/[0.06] text-white' : 'text-neutral-400 hover:bg-white/[0.03]'}`}
               >
                 My Bets
               </button>
             </div>
-            <div className="mt-2 divide-y divide-white/10 max-h-[32rem] overflow-y-auto">
+            <div className="mt-2 divide-y divide-white/5 overflow-y-auto custom-scrollbar" style={{ maxHeight: 'calc(100vh - var(--nav-height) - 8rem)' }}>
               {displayedFlips.length === 0 ? (
-                <div className="px-4 py-6 text-center text-neutral-500 text-sm">
+                <div className="px-fluid-3 py-fluid-4 text-center text-neutral-500 text-fluid-xs">
                   {activeTab === 'mine' && !address ? 'Connect wallet to see your bets' : 'No recent flips'}
                 </div>
               ) : (
                 displayedFlips.map((flip, i) => (
-                  <div key={i} className="px-4 py-4">
+                  <div key={i} className="px-fluid-3 py-fluid-3">
                     <div className="flex items-center justify-between">
-                      <div className="text-xs text-neutral-400 truncate max-w-[60%]">{formatAddress(flip.player)}</div>
-                      <div className="text-xs text-neutral-500 whitespace-nowrap">{formatTimeAgo(flip.timestamp)}</div>
+                      <div className="text-fluid-xs text-neutral-400 truncate max-w-[60%]">{formatAddress(flip.player)}</div>
+                      <div className="text-fluid-xs text-neutral-500 whitespace-nowrap">{formatTimeAgo(flip.timestamp)}</div>
                     </div>
-                    <div className="mt-3 flex justify-between items-start">
-                      <div className="flex items-center gap-3 w-24">
+                    <div className="mt-fluid-2 flex justify-between items-center">
+                      <div className="flex items-center gap-fluid-2 flex-1">
                         <Image
                           src={flip.choice === 0 ? '/Heads.png' : '/Tails.png'}
                           alt={flip.choice === 0 ? 'Heads' : 'Tails'}
-                          width={36}
-                          height={36}
-                          className="h-9 w-9 rounded-full object-contain shrink-0"
+                          width={28}
+                          height={28}
+                          className="rounded-full object-contain shrink-0"
+                          style={{ width: 'clamp(24px, 2.5vw + 16px, 32px)', height: 'clamp(24px, 2.5vw + 16px, 32px)' }}
                         />
-                        <div className="flex-1">
-                          <div className="text-neutral-400 text-xs font-medium mb-1">Bet</div>
-                          <div className="text-sm">{flip.choice === 0 ? 'Heads' : 'Tails'}</div>
-                        </div>
+                        <div className="text-fluid-xs">{flip.choice === 0 ? 'Heads' : 'Tails'}</div>
                       </div>
-                      <div className="min-w-0 text-center">
-                        <div className="text-neutral-400 text-xs font-medium mb-1">Result</div>
-                        <div className={`${flip.didWin === true ? 'text-emerald-300' : flip.didWin === false ? 'text-rose-300' : 'text-yellow-300'} text-sm`}> 
+                      <div className="text-center flex-1">
+                        <div className={`${flip.didWin === true ? 'text-emerald-300' : flip.didWin === false ? 'text-rose-300' : 'text-yellow-300'} text-fluid-xs`}> 
                           {flip.didWin === undefined ? 'Pending' : flip.didWin ? 'Win' : 'Loss'}
                         </div>
                       </div>
-                      <div className="min-w-0 text-right">
-                        <div className="text-neutral-400 text-xs font-medium mb-1">Amount</div>
-                        <div className="flex items-center justify-end gap-1 text-sm whitespace-nowrap">
-                          <span className="inline-block h-2 w-2 rounded-full bg-emerald-300" />
+                      <div className="text-right flex-1">
+                        <div className="flex items-center justify-end gap-1 text-fluid-xs whitespace-nowrap">
+                          <svg className="w-2.5 h-2.5 text-emerald-300 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/>
+                          </svg>
                           {Number(formatEther(flip.betAmount)).toFixed(4)}
                         </div>
                         {flip.payout && flip.didWin && (
-                          <div className="text-xs text-emerald-300/90 whitespace-nowrap">+{Number(formatEther(flip.payout)).toFixed(4)}</div>
+                          <div className="flex items-center justify-end gap-1 text-fluid-xs text-emerald-300/80 whitespace-nowrap">
+                            <span>+</span>
+                            <svg className="w-2.5 h-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/>
+                            </svg>
+                            <span>{Number(formatEther(flip.payout)).toFixed(4)}</span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -622,16 +658,17 @@ export default function CoinflipPage() {
         </aside>
       </main>
 
-      <footer className="relative z-10 mx-auto max-w-[1300px] px-4 pb-10 pt-2 text-xs text-neutral-500">
-        <div>
-          <span className="opacity-70">Coin Flip V2 • Powered by Abstract Network & VRF</span>
+      <footer className="relative z-10 mx-auto w-full px-fluid-4 lg:px-fluid-6 xl:px-fluid-8 py-fluid-4 text-fluid-xs text-neutral-500 mt-auto" style={{ maxWidth: 'min(95vw, var(--container-3xl))' }}>
+        <div className="text-center">
+          <span className="opacity-70">Coin Flip V2 • Powered by Abstract Network & VRF • On-chain Gambling</span>
         </div>
       </footer>
+      </div>
 
       {/* animations */}
       <style jsx>{`
         .animate-spin-slow { animation: spin 16s linear infinite; }
-        .animate-coin-spin { animation: coin-spin 1s ease-in-out; }
+        .animate-coin-spin { animation: coin-spin 0.75s ease-in-out; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes coin-spin { 
           0% { transform: rotateY(0deg); }
