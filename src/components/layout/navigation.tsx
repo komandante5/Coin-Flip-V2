@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { usePathname } from 'next/navigation';
 import { ConnectWalletButton } from '@/components/connect-wallet-button';
 import { Menu, X } from "lucide-react";
@@ -14,7 +14,7 @@ const navigationItems = [
   { label: "On‑chain", href: "/onchain" },
 ];
 
-export function Navigation() {
+function NavigationComponent() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -22,39 +22,47 @@ export function Navigation() {
   
   const headerRef = useRef<HTMLElement | null>(null);
 
-  // Auto-hide navigation on scroll
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      
-      if (currentScrollY < 10) {
-        // Always show nav when at top
-        setIsNavVisible(true);
-      } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
-        // Hide nav when scrolling down (after 100px)
-        setIsNavVisible(false);
-        setIsMobileMenuOpen(false); // Close mobile menu when hiding
-      } else if (currentScrollY < lastScrollY - 10) {
-        // Show nav when scrolling up (with 10px threshold)
-        setIsNavVisible(true);
-      }
-      
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+  // Debounced scroll handler to improve performance
+  const handleScroll = useCallback(() => {
+    const currentScrollY = window.scrollY;
+    
+    if (currentScrollY < 10) {
+      // Always show nav when at top
+      setIsNavVisible(true);
+    } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
+      // Hide nav when scrolling down (after 100px)
+      setIsNavVisible(false);
+      setIsMobileMenuOpen(false); // Close mobile menu when hiding
+    } else if (currentScrollY < lastScrollY - 10) {
+      // Show nav when scrolling up (with 10px threshold)
+      setIsNavVisible(true);
+    }
+    
+    setLastScrollY(currentScrollY);
   }, [lastScrollY]);
 
-  const getActiveNavItem = () => {
+  // Auto-hide navigation on scroll
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const debouncedHandleScroll = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(handleScroll, 10); // 10ms debounce
+    };
+
+    window.addEventListener('scroll', debouncedHandleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', debouncedHandleScroll);
+      clearTimeout(timeoutId);
+    };
+  }, [handleScroll]);
+
+  const activeNavItem = useCallback(() => {
     if (pathname === '/') return 'Coinflip';
     if (pathname === '/leaderboard') return 'Leaderboard';
     if (pathname === '/rewards') return 'Rewards';
     if (pathname === '/onchain') return 'On‑chain';
     return '';
-  };
-
-  const activeNavItem = getActiveNavItem();
+  }, [pathname])();
 
   return (
     <header ref={headerRef} className={`fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#0c0f10]/90 backdrop-blur-md transition-transform duration-300 ${
@@ -71,6 +79,8 @@ export function Navigation() {
               height={24}
               className="object-contain"
               style={{ height: 'clamp(24px, 3vw + 16px, 32px)', width: 'auto' }}
+              priority
+              sizes="(max-width: 768px) 24px, 32px"
             />
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -95,6 +105,8 @@ export function Navigation() {
               height={40}
               className="object-contain"
               style={{ height: 'clamp(32px, 3vw + 20px, 48px)', width: 'auto' }}
+              priority
+              sizes="(max-width: 768px) 32px, (max-width: 1200px) 40px, 48px"
             />
             <span className="font-semibold tracking-tight text-fluid-xl lg:text-fluid-2xl">Dizzio</span>
           </div>
@@ -107,6 +119,7 @@ export function Navigation() {
                   item.label === activeNavItem ? "text-white bg-white/[0.06]" : ""
                 }`}
                 href={item.href}
+                prefetch={true}
               >
                 {item.label}
               </Link>
@@ -130,6 +143,7 @@ export function Navigation() {
                   item.label === activeNavItem ? "text-white bg-white/[0.06]" : "text-neutral-300"
                 }`}
                 href={item.href}
+                prefetch={true}
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 {item.label}
@@ -141,3 +155,6 @@ export function Navigation() {
     </header>
   );
 }
+
+// Memoize navigation component to prevent unnecessary re-renders
+export const Navigation = memo(NavigationComponent);

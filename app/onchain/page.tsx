@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { ExternalLink, ShieldCheck, ScrollText } from 'lucide-react';
 import { PageLayout } from '@/components/layout/page-layout';
 import addresses from '../../src/deployments.localhost.json';
@@ -9,7 +9,7 @@ import { chain } from '../../src/config/chain';
 
 const coinFlipAddress = (addresses as any).coinFlip as `0x${string}`;
 
-export default function OnchainPage() {
+function OnchainPageComponent() {
   const explorerBase = useMemo(() => {
     // Abstract explorers follow Etherscan-like paths on testnet
     // For local dev we link to placeholder docs.
@@ -102,4 +102,6 @@ export default function OnchainPage() {
   );
 }
 
+// Memoize onchain page for better performance
+export default memo(OnchainPageComponent);
 

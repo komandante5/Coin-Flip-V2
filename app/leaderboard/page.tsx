@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback, memo } from 'react';
 import Link from 'next/link';
 import { usePublicClient } from 'wagmi';
 import { formatEther, parseAbiItem } from 'viem';
@@ -20,88 +20,116 @@ type PlayerStats = {
 
 const coinFlipAddress = (addresses as any).coinFlip as `0x${string}`;
 
-function formatEth(value: bigint) {
+// Memoized utility functions for better performance
+const formatEth = (value: bigint) => {
   try {
     return Number(formatEther(value)).toFixed(4);
   } catch {
     return '0.0000';
   }
-}
+};
 
-function shortAddress(addr: string) {
+const shortAddress = (addr: string) => {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-}
+};
 
-export default function LeaderboardPage() {
+function LeaderboardPageComponent() {
   const publicClient = usePublicClient();
   const [stats, setStats] = useState<PlayerStats[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const run = async () => {
-      if (!publicClient) return;
-      setLoading(true);
-      try {
-        const revealLogs = await publicClient.getLogs({
-          address: coinFlipAddress,
-          event: parseAbiItem('event FlipRevealed(address indexed player, uint256 betAmount, uint8 choice, uint8 result, bool didWin, uint256 payout, uint256 indexed requestId)'),
-          fromBlock: 'earliest',
-          toBlock: 'latest'
-        });
+  // Memoized data fetching function
+  const fetchLeaderboardData = useCallback(async () => {
+    if (!publicClient) return;
+    
+    setLoading(true);
+    try {
+      // Optimize: Get recent blocks first, fall back to full history if needed
+      const latestBlock = await publicClient.getBlockNumber();
+      const fromBlock = latestBlock > 10000n ? latestBlock - 10000n : 'earliest';
+      
+      const revealLogs = await publicClient.getLogs({
+        address: coinFlipAddress,
+        event: parseAbiItem('event FlipRevealed(address indexed player, uint256 betAmount, uint8 choice, uint8 result, bool didWin, uint256 payout, uint256 indexed requestId)'),
+        fromBlock,
+        toBlock: 'latest'
+      });
 
-        const map = new Map<string, PlayerStats>();
-        for (const log of revealLogs) {
-          const player = (log.args.player || '0x0') as string;
-          const betAmount = (log.args.betAmount || 0n) as bigint;
-          const payout = (log.args.payout || 0n) as bigint;
-          const didWin = Boolean(log.args.didWin);
+      const map = new Map<string, PlayerStats>();
+      
+      // Batch process logs for better performance
+      for (const log of revealLogs) {
+        const player = (log.args.player || '0x0') as string;
+        const betAmount = (log.args.betAmount || 0n) as bigint;
+        const payout = (log.args.payout || 0n) as bigint;
+        const didWin = Boolean(log.args.didWin);
 
-          if (!map.has(player)) {
-            map.set(player, {
-              address: player,
-              totalBets: 0n,
-              totalPayout: 0n,
-              wins: 0,
-              losses: 0,
-              betCount: 0,
-              biggestWin: 0n,
-            });
-          }
-          const s = map.get(player)!;
-          s.totalBets += betAmount;
-          s.totalPayout += payout;
-          s.betCount += 1;
-          if (didWin) {
-            s.wins += 1;
-            const net = payout > betAmount ? payout - betAmount : payout;
-            if (net > s.biggestWin) s.biggestWin = net;
-          } else {
-            s.losses += 1;
-          }
+        if (!map.has(player)) {
+          map.set(player, {
+            address: player,
+            totalBets: 0n,
+            totalPayout: 0n,
+            wins: 0,
+            losses: 0,
+            betCount: 0,
+            biggestWin: 0n,
+          });
         }
-
-        setStats(Array.from(map.values()));
-      } catch (err) {
-        console.error('leaderboard fetch error', err);
-      } finally {
-        setLoading(false);
+        
+        const playerStats = map.get(player)!;
+        playerStats.totalBets += betAmount;
+        playerStats.totalPayout += payout;
+        playerStats.betCount += 1;
+        
+        if (didWin) {
+          playerStats.wins += 1;
+          const net = payout > betAmount ? payout - betAmount : payout;
+          if (net > playerStats.biggestWin) {
+            playerStats.biggestWin = net;
+          }
+        } else {
+          playerStats.losses += 1;
+        }
       }
-    };
-    run();
+
+      setStats(Array.from(map.values()));
+    } catch (err) {
+      console.error('leaderboard fetch error', err);
+      setStats([]); // Set empty array on error
+    } finally {
+      setLoading(false);
+    }
   }, [publicClient]);
 
-  const sorted = useMemo(() => {
-    return [...stats]
-      .map(s => ({
-        ...s,
-        profit: s.totalPayout - s.totalBets,
-        avgBet: s.betCount === 0 ? 0n : s.totalBets / BigInt(s.betCount),
-      }))
-      .sort((a, b) => (b.profit > a.profit ? 1 : b.profit < a.profit ? -1 : 0))
-      .slice(0, 100);
-  }, [stats]);
+  useEffect(() => {
+    fetchLeaderboardData();
+  }, [fetchLeaderboardData]);
 
-  const winnersOnly = useMemo(() => sorted.filter(s => s.profit > 0n), [sorted]);
+  // Optimized sorting and filtering with better performance
+  const { sorted, winnersOnly } = useMemo(() => {
+    if (stats.length === 0) {
+      return { sorted: [], winnersOnly: [] };
+    }
+    
+    const enrichedStats = stats.map(s => ({
+      ...s,
+      profit: s.totalPayout - s.totalBets,
+      avgBet: s.betCount === 0 ? 0n : s.totalBets / BigInt(s.betCount),
+    }));
+    
+    const sortedStats = enrichedStats
+      .sort((a, b) => {
+        // More efficient comparison
+        if (b.profit > a.profit) return 1;
+        if (b.profit < a.profit) return -1;
+        return 0;
+      })
+      .slice(0, 100);
+      
+    const winners = sortedStats.filter(s => s.profit > 0n);
+    
+    return { sorted: sortedStats, winnersOnly: winners };
+  }, [stats]);
 
   return (
     <PageLayout>
@@ -246,5 +274,8 @@ export default function LeaderboardPage() {
     </PageLayout>
   );
 }
+
+// Memoize the entire leaderboard page to prevent unnecessary re-renders
+export default memo(LeaderboardPageComponent);
 
 

@@ -1,4 +1,6 @@
-export function AmbientBackground() {
+import { memo } from 'react';
+
+function AmbientBackgroundComponent() {
   return (
     <div className="pointer-events-none fixed inset-0">
       <div className="absolute -top-[10vw] -left-[10vw] h-[30vw] w-[30vw] max-h-[400px] max-w-[400px] rounded-full blur-[120px] opacity-30 bg-emerald-400/30" />
@@ -6,3 +8,6 @@ export function AmbientBackground() {
     </div>
   );
 }
+
+// Memoize AmbientBackground since it never changes
+export const AmbientBackground = memo(AmbientBackgroundComponent);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, memo } from "react";
 import { useWriteContract, usePublicClient, useReadContract, useAccount } from 'wagmi';
 import { parseEther, parseEventLogs, formatEther, type Abi, parseAbiItem } from 'viem';
 import { ChevronRight } from "lucide-react";
@@ -34,7 +34,7 @@ interface FlipEvent {
 }
 
 
-export default function CoinflipPage() {
+function CoinflipPage() {
   const [selected, setSelected] = useState<CoinSide>('Heads');
   const [selectedForUI, setSelectedForUI] = useState<CoinSide>('Heads');
   const [amount, setAmount] = useState<string>("0.01");
@@ -48,20 +48,17 @@ export default function CoinflipPage() {
   const publicClient = usePublicClient();
   const { address } = useAccount();
 
-  // Read min/max bet from contract
+  // Read min/max bet from contract with caching
   const { data: gameStats, refetch: refetchStats } = useReadContract({
     address: coinFlipAddress,
     abi: coinFlipAbi,
     functionName: 'getGameStats',
+    query: {
+      staleTime: 30000, // Cache for 30 seconds
+      refetchInterval: 30000, // Auto-refetch every 30 seconds
+    }
   }) as { data: GameStatsArray | undefined, refetch: () => void };
 
-  const maxBet = gameStats && Array.isArray(gameStats) && gameStats.length === 6
-    ? Number(formatEther(gameStats[5] || BigInt(0)))
-    : 7.4703;
-
-  const minBet = gameStats && Array.isArray(gameStats) && gameStats.length === 6
-    ? Number(formatEther(gameStats[4] || BigInt(0)))
-    : 0.01;
 
   // DEMO-ONLY: Local mock data for recent bets when there are no events
   // TODO: Remove this block and rely solely on on-chain logs once backend is wired
@@ -104,76 +101,95 @@ export default function CoinflipPage() {
     ];
   }, [address]);
 
-  // Fetch recent flip events
-  useEffect(() => {
-    const fetchRecentFlips = async () => {
-      if (!publicClient) return;
+  // Memoize expensive calculations
+  const { minBet, maxBet } = useMemo(() => {
+    if (gameStats && Array.isArray(gameStats) && gameStats.length === 6) {
+      return {
+        minBet: Number(formatEther(gameStats[4] || BigInt(0))),
+        maxBet: Number(formatEther(gameStats[5] || BigInt(0)))
+      };
+    }
+    return { minBet: 0.01, maxBet: 7.4703 };
+  }, [gameStats]);
 
-      try {
-        // Get recent committed events
-        const commitLogs = await publicClient.getLogs({
-          address: coinFlipAddress,
-          event: parseAbiItem('event FlipCommitted(address indexed player, uint256 betAmount, uint8 choice, uint256 indexed requestId)'),
-          fromBlock: 'earliest',
-          toBlock: 'latest'
-        });
+  // Memoized fetch function to prevent unnecessary re-creations
+  const fetchRecentFlips = useCallback(async () => {
+    if (!publicClient) return;
 
-        // Get recent revealed events
-        const revealLogs = await publicClient.getLogs({
-          address: coinFlipAddress,
-          event: parseAbiItem('event FlipRevealed(address indexed player, uint256 betAmount, uint8 choice, uint8 result, bool didWin, uint256 payout, uint256 indexed requestId)'),
-          fromBlock: 'earliest',
-          toBlock: 'latest'
-        });
+    try {
+      // Get recent committed events
+      const commitLogs = await publicClient.getLogs({
+        address: coinFlipAddress,
+        event: parseAbiItem('event FlipCommitted(address indexed player, uint256 betAmount, uint8 choice, uint256 indexed requestId)'),
+        fromBlock: 'earliest',
+        toBlock: 'latest'
+      });
 
-        // Combine and process events
-        const flips: FlipEvent[] = [];
+      // Get recent revealed events
+      const revealLogs = await publicClient.getLogs({
+        address: coinFlipAddress,
+        event: parseAbiItem('event FlipRevealed(address indexed player, uint256 betAmount, uint8 choice, uint8 result, bool didWin, uint256 payout, uint256 indexed requestId)'),
+        fromBlock: 'earliest',
+        toBlock: 'latest'
+      });
+
+      // Combine and process events
+      const flips: FlipEvent[] = [];
+      
+      for (const commitLog of commitLogs.slice(-10)) { // Get last 10
+        const block = await publicClient.getBlock({ blockNumber: commitLog.blockNumber });
+        // Match by requestId via decoded args (more robust than topic index)
+        const revealLog = revealLogs.find((r: any) => (r?.args?.requestId) === (commitLog as any)?.args?.requestId);
         
-        for (const commitLog of commitLogs.slice(-10)) { // Get last 10
-          const block = await publicClient.getBlock({ blockNumber: commitLog.blockNumber });
-          // Match by requestId via decoded args (more robust than topic index)
-          const revealLog = revealLogs.find((r: any) => (r?.args?.requestId) === (commitLog as any)?.args?.requestId);
-          
-          flips.push({
-            player: commitLog.args.player as string,
-            betAmount: commitLog.args.betAmount as bigint,
-            choice: commitLog.args.choice as number,
-            result: revealLog?.args?.result as number | undefined,
-            didWin: revealLog?.args?.didWin as boolean | undefined,
-            payout: revealLog?.args?.payout as bigint | undefined,
-            requestId: commitLog.args.requestId as bigint,
-            timestamp: Number(block.timestamp)
-          });
-        }
-
-        const ordered = flips.reverse(); // Most recent first
-        if (ordered.length === 0 && process.env.NODE_ENV !== 'production') {
-          setRecentFlips(demoFlips);
-        } else {
-          setRecentFlips(ordered);
-        }
-      } catch (error) {
-        console.error('Error fetching flip events:', error);
-        // Fall back to demo flips in dev if fetching failed
-        if (process.env.NODE_ENV !== 'production') {
-          setRecentFlips(demoFlips);
-        }
+        flips.push({
+          player: commitLog.args.player as string,
+          betAmount: commitLog.args.betAmount as bigint,
+          choice: commitLog.args.choice as number,
+          result: revealLog?.args?.result as number | undefined,
+          didWin: revealLog?.args?.didWin as boolean | undefined,
+          payout: revealLog?.args?.payout as bigint | undefined,
+          requestId: commitLog.args.requestId as bigint,
+          timestamp: Number(block.timestamp)
+        });
       }
-    };
 
-    fetchRecentFlips();
-    const interval = setInterval(fetchRecentFlips, 10000);
-    return () => clearInterval(interval);
+      const ordered = flips.reverse(); // Most recent first
+      if (ordered.length === 0 && process.env.NODE_ENV !== 'production') {
+        setRecentFlips(demoFlips);
+      } else {
+        setRecentFlips(ordered);
+      }
+    } catch (error) {
+      console.error('Error fetching flip events:', error);
+      // Fall back to demo flips in dev if fetching failed
+      if (process.env.NODE_ENV !== 'production') {
+        setRecentFlips(demoFlips);
+      }
+    }
   }, [publicClient, demoFlips]);
 
+  // Fetch recent flip events with reduced frequency
   useEffect(() => {
-    const id = setInterval(() => refetchStats(), 10000);
-    return () => clearInterval(id);
+    fetchRecentFlips();
+    // Reduce frequency to 30 seconds to minimize blockchain calls
+    const interval = setInterval(fetchRecentFlips, 30000);
+    return () => clearInterval(interval);
+  }, [fetchRecentFlips]);
+
+  // Debounced refetch function to prevent excessive calls
+  const memoizedRefetchStats = useCallback(() => {
+    refetchStats();
   }, [refetchStats]);
 
+  useEffect(() => {
+    // Reduce frequency to 30 seconds to minimize blockchain calls
+    const id = setInterval(memoizedRefetchStats, 30000);
+    return () => clearInterval(id);
+  }, [memoizedRefetchStats]);
 
 
-  function handleCoinSelection(side: CoinSide) {
+
+  const handleCoinSelection = useCallback((side: CoinSide) => {
     // Only animate if we're actually changing sides
     if (selectedForUI === side) return;
     
@@ -186,15 +202,15 @@ export default function CoinflipPage() {
     // Change the coin image halfway through the animation (when coin is edge-on)
     setTimeout(() => {
       setSelected(side);
-    }, 375); // Half of 750ms
+    }, 187); // Half of 375ms (50% faster)
     
-    // Stop spinning after 0.75 seconds
+    // Stop spinning after 0.375 seconds (50% faster)
     setTimeout(() => {
       setIsSpinning(false);
-    }, 750);
-  }
+    }, 375);
+  }, [selectedForUI]);
 
-  async function flip() {
+  const flip = useCallback(async () => {
     if (!address) return;
     
     setIsFlipping(true);
@@ -228,26 +244,27 @@ export default function CoinflipPage() {
 
       await publicClient!.waitForTransactionReceipt({ hash: txHash2 });
       setTimeout(() => {
-        refetchStats();
+        memoizedRefetchStats();
         // Refresh recent flips after a short delay
-        setTimeout(() => window.location.reload(), 1000);
+        setTimeout(() => fetchRecentFlips(), 1000);
       }, 1000);
     } catch (error) {
       console.error('Error flipping coin:', error);
     } finally {
       setIsFlipping(false);
     }
-  }
+  }, [address, selected, amount, writeContractAsync, publicClient, memoizedRefetchStats, fetchRecentFlips]);
 
-  const formatAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  const formatTimeAgo = (timestamp: number) => {
+  // Memoized utility functions
+  const formatAddress = useCallback((addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`, []);
+  const formatTimeAgo = useCallback((timestamp: number) => {
     const now = Math.floor(Date.now() / 1000);
     const diff = now - timestamp;
     if (diff < 60) return `${diff}s ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     return `${Math.floor(diff / 86400)}d ago`;
-  };
+  }, []);
 
   const displayedFlips = useMemo(() => {
     if (activeTab === 'mine') {
@@ -256,6 +273,13 @@ export default function CoinflipPage() {
     }
     return recentFlips;
   }, [activeTab, address, recentFlips]);
+
+  // Optimize tab change handling
+  const handleTabChange = useCallback((tab: 'all' | 'mine') => {
+    if (activeTab !== tab) {
+      setActiveTab(tab);
+    }
+  }, [activeTab]);
 
   return (
     <PageLayout>
@@ -274,6 +298,8 @@ export default function CoinflipPage() {
                   width={288}
                   height={288}
                   className="w-full h-full object-cover"
+                  priority
+                  sizes="(max-width: 768px) 120px, (max-width: 1200px) 150px, 180px"
                 />
               </div>
               
@@ -307,6 +333,8 @@ export default function CoinflipPage() {
                         width={96}
                         height={96}
                         className="w-full h-full object-contain"
+                        priority
+                        sizes="(max-width: 768px) 40px, (max-width: 1200px) 48px, 56px"
                       />
                     </div>
                   </div>
@@ -336,6 +364,8 @@ export default function CoinflipPage() {
                         width={96}
                         height={96}
                         className="w-full h-full object-contain"
+                        priority
+                        sizes="(max-width: 768px) 40px, (max-width: 1200px) 48px, 56px"
                       />
                     </div>
                   </div>
@@ -379,20 +409,20 @@ export default function CoinflipPage() {
                 </div>
               </div>
 
-              {/* Quick bet buttons */}
+              {/* Quick bet buttons - memoized */}
               <div className="grid grid-cols-5 gap-fluid-2">
-                {[
-                  { label: '0.01', onClick: () => setAmount('0.01') },
-                  { label: '0.1', onClick: () => setAmount('0.1') },
-                  { label: '0.5', onClick: () => setAmount('0.5') },
-                  { label: '1.0', onClick: () => setAmount('1') },
-                  { label: 'MAX', onClick: () => setAmount(String(maxBet.toFixed(4))) },
-                ].map((b, i) => (
+                {useMemo(() => [
+                  { label: '0.01', value: '0.01' },
+                  { label: '0.1', value: '0.1' },
+                  { label: '0.5', value: '0.5' },
+                  { label: '1.0', value: '1' },
+                  { label: 'MAX', value: String(maxBet.toFixed(4)) },
+                ], [maxBet]).map((b, i) => (
                   <button
-                    key={i}
-                    onClick={b.onClick}
+                    key={b.label}
+                    onClick={() => setAmount(b.value)}
                     className={`rounded-md border py-fluid-2 px-fluid-2 text-fluid-xs font-medium transition-all duration-200 hover:scale-[1.02] ${
-                      amount === b.label || (b.label === 'MAX' && amount === String(maxBet.toFixed(4)))
+                      amount === b.value || (b.label === 'MAX' && amount === String(maxBet.toFixed(4)))
                         ? 'border-emerald-400/50 bg-emerald-500/10 text-emerald-300'
                         : 'border-white/15 bg-white/[0.02] text-neutral-200 hover:bg-white/[0.04] hover:border-white/25'
                     }`}
@@ -437,7 +467,7 @@ export default function CoinflipPage() {
           <div className="rounded-xl border border-white/10 bg-white/[0.02] flex flex-col" style={{ height: 'clamp(400px, 75vh, 800px)' }}>
             <div className="flex gap-fluid-1 px-fluid-3 pt-fluid-3 pb-fluid-2 border-b border-white/5">
               <button
-                onClick={() => setActiveTab('all')}
+                onClick={() => handleTabChange('all')}
                 className={`text-fluid-xs px-fluid-3 py-fluid-2 transition-all duration-200 relative ${
                   activeTab === 'all' 
                     ? 'text-white' 
@@ -450,7 +480,7 @@ export default function CoinflipPage() {
                 )}
               </button>
               <button
-                onClick={() => setActiveTab('mine')}
+                onClick={() => handleTabChange('mine')}
                 className={`text-fluid-xs px-fluid-3 py-fluid-2 transition-all duration-200 relative ${
                   activeTab === 'mine' 
                     ? 'text-white' 
@@ -489,6 +519,8 @@ export default function CoinflipPage() {
                           height={28}
                           className="rounded-full object-contain shrink-0"
                           style={{ width: 'clamp(24px, 2.5vw + 16px, 32px)', height: 'clamp(24px, 2.5vw + 16px, 32px)' }}
+                          loading="lazy"
+                          sizes="(max-width: 768px) 24px, (max-width: 1200px) 28px, 32px"
                         />
                         <div className="text-fluid-xs">{flip.choice === 0 ? 'Heads' : 'Tails'}</div>
                       </div>
@@ -526,7 +558,7 @@ export default function CoinflipPage() {
       {/* animations */}
       <style jsx>{`
         .animate-spin-slow { animation: spin 16s linear infinite; }
-        .animate-coin-spin { animation: coin-spin 0.75s ease-in-out; }
+        .animate-coin-spin { animation: coin-spin 0.375s ease-in-out; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes coin-spin { 
           0% { transform: rotateY(0deg); }
@@ -536,3 +568,6 @@ export default function CoinflipPage() {
     </PageLayout>
   );
 }
+
+// Memoize the entire component to prevent unnecessary re-renders
+export default memo(CoinflipPage);

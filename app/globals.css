@@ -3,6 +3,15 @@
 
 /* Minimal CSS variables for shadcn components */
 @layer base {
+  /* Performance optimizations */
+  html {
+    /* Enable font-display swap for better loading performance */
+    font-display: swap;
+    /* Reduce layout shifts */
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
   :root {
     --primary: 222.2 47.4% 11.2%;
     --primary-foreground: 210 40% 98%;
@@ -57,6 +66,11 @@
     @apply bg-[#0c0f10] text-white;
     font-size: var(--text-base);
     line-height: 1.6;
+    /* Improve rendering performance */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Reduce layout thrashing */
+    overflow-x: hidden;
   }
   
   /* Responsive text utilities */
@@ -114,20 +128,28 @@
   .mb-fluid-5 { margin-bottom: var(--space-5); }
   .mb-fluid-6 { margin-bottom: var(--space-6); }
   
-  /* Smooth transitions for all responsive changes */
-  * {
-    transition: font-size 0.2s ease, padding 0.2s ease, margin 0.2s ease, gap 0.2s ease, width 0.2s ease, height 0.2s ease;
+  /* Selective transitions for better performance - only where needed */
+  .transition-responsive {
+    transition: font-size 0.2s ease, padding 0.2s ease, margin 0.2s ease;
   }
   
-  /* Ensure images scale smoothly */
+  /* Optimize image transitions for better performance */
   img {
-    transition: width 0.2s ease, height 0.2s ease;
+    will-change: auto;
   }
   
-  /* Custom scrollbar styles for bet history */
+  /* Use GPU acceleration for animations */
+  .animate-spin,
+  .animate-coin-spin {
+    will-change: transform;
+  }
+  
+  /* Optimized scrollbar styles for better performance */
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+    /* Use containment for better rendering performance */
+    contain: layout style;
   }
   
   .custom-scrollbar::-webkit-scrollbar {
@@ -142,6 +164,8 @@
     background-color: rgba(0, 0, 0, 0.3);
     border-radius: 4px;
     border: 1px solid rgba(255, 255, 255, 0.1);
+    /* Use hardware acceleration */
+    will-change: background-color;
   }
   
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {

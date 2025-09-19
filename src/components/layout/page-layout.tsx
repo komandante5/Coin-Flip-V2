@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, memo } from 'react';
 import { AmbientBackground } from './ambient-background';
 import { Navigation } from './navigation';
 
@@ -7,7 +7,7 @@ interface PageLayoutProps {
   className?: string;
 }
 
-export function PageLayout({ children, className = "" }: PageLayoutProps) {
+function PageLayoutComponent({ children, className = "" }: PageLayoutProps) {
   return (
     <div className={`min-h-screen w-full bg-[#0c0f10] text-white flex flex-col ${className}`}>
       <AmbientBackground />
@@ -26,3 +26,6 @@ export function PageLayout({ children, className = "" }: PageLayoutProps) {
     </div>
   );
 }
+
+// Memoize PageLayout to prevent unnecessary re-renders
+export const PageLayout = memo(PageLayoutComponent);

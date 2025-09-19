@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { Lock } from 'lucide-react';
+import { memo } from 'react';
 import { PageLayout } from '@/components/layout/page-layout';
 
-export default function RewardsPage() {
+function RewardsPageComponent() {
   return (
     <PageLayout>
       <main className="relative z-10 mx-auto w-full px-fluid-4 lg:px-fluid-6 xl:px-fluid-8 py-fluid-6 lg:py-fluid-10 flex-1 flex flex-col" style={{ maxWidth: 'min(98vw, var(--container-xl))' }}>
@@ -58,4 +59,6 @@ export default function RewardsPage() {
   );
 }
 
+// Memoize rewards page since it's static content
+export default memo(RewardsPageComponent);
 

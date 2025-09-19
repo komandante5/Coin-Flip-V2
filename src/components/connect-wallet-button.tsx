@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useState } from "react"
+import { useState, useCallback, memo } from "react"
 
 interface ConnectWalletButtonProps {
   className?: ClassValue
@@ -28,7 +28,7 @@ interface ConnectWalletButtonProps {
  * - Balance display with wallet and Abstract logos
  * - Dropdown menu with address copy functionality
  */
-export function ConnectWalletButton({ className, customDropdownItems }: ConnectWalletButtonProps) {
+function ConnectWalletButtonComponent({ className, customDropdownItems }: ConnectWalletButtonProps) {
   // Wagmi hooks for wallet state and balance
   const { isConnected, status, address } = useAccount()
   const { data: balance, isLoading: isBalanceLoading } = useBalance({ address })
@@ -43,13 +43,13 @@ export function ConnectWalletButton({ className, customDropdownItems }: ConnectW
   /**
    * Copy wallet address to clipboard with visual feedback
    */
-  const copyAddress = async () => {
+  const copyAddress = useCallback(async () => {
     if (address) {
       await navigator.clipboard.writeText(address)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }
-  }
+  }, [address])
 
   // Loading state: Show connecting button with spinning logo
   if (isConnecting) {
@@ -221,3 +221,6 @@ function AbstractLogo({ className }: { className?: ClassValue }) {
     </svg>
   )
 }
+
+// Memoize the connect wallet button to prevent unnecessary re-renders
+export const ConnectWalletButton = memo(ConnectWalletButtonComponent);
