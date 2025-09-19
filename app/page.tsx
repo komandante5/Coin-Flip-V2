@@ -434,25 +434,44 @@ export default function CoinflipPage() {
 
         {/* Left rail: recent bets - appears second on mobile, first on desktop */}
         <aside className="col-span-12 md:col-span-4 lg:col-span-4 xl:col-span-4 order-2 md:order-1">
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] h-fit" style={{ maxHeight: 'calc(100vh - var(--nav-height) - var(--space-8))' }}>
-            <div className="flex gap-fluid-1 px-fluid-3 pt-fluid-3">
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] flex flex-col" style={{ height: 'clamp(400px, 75vh, 800px)' }}>
+            <div className="flex gap-fluid-1 px-fluid-3 pt-fluid-3 pb-fluid-2 border-b border-white/5">
               <button
                 onClick={() => setActiveTab('all')}
-                className={`text-fluid-xs px-fluid-3 py-fluid-2 rounded-md transition-all duration-200 ${activeTab === 'all' ? 'bg-white/[0.06] text-white' : 'text-neutral-400 hover:bg-white/[0.03]'}`}
+                className={`text-fluid-xs px-fluid-3 py-fluid-2 transition-all duration-200 relative ${
+                  activeTab === 'all' 
+                    ? 'text-white' 
+                    : 'text-neutral-400 hover:text-neutral-200'
+                }`}
               >
                 All Bets
+                {activeTab === 'all' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-400 rounded-full"></div>
+                )}
               </button>
               <button
                 onClick={() => setActiveTab('mine')}
-                className={`text-fluid-xs px-fluid-3 py-fluid-2 rounded-md transition-all duration-200 ${activeTab === 'mine' ? 'bg-white/[0.06] text-white' : 'text-neutral-400 hover:bg-white/[0.03]'}`}
+                className={`text-fluid-xs px-fluid-3 py-fluid-2 transition-all duration-200 relative ${
+                  activeTab === 'mine' 
+                    ? 'text-white' 
+                    : 'text-neutral-400 hover:text-neutral-200'
+                }`}
               >
                 My Bets
+                {activeTab === 'mine' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-400 rounded-full"></div>
+                )}
               </button>
             </div>
-            <div className="mt-2 divide-y divide-white/5 overflow-y-auto custom-scrollbar" style={{ maxHeight: 'calc(100vh - var(--nav-height) - 8rem)' }}>
+            <div className="flex-1 divide-y divide-white/5 overflow-y-auto custom-scrollbar">
               {displayedFlips.length === 0 ? (
-                <div className="px-fluid-3 py-fluid-4 text-center text-neutral-500 text-fluid-xs">
-                  {activeTab === 'mine' && !address ? 'Connect wallet to see your bets' : 'No recent flips'}
+                <div className="flex items-center justify-center h-full px-fluid-3 py-fluid-4 text-center text-neutral-500 text-fluid-xs">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
+                      <span className="text-fluid-sm">📊</span>
+                    </div>
+                    <div>{activeTab === 'mine' && !address ? 'Connect wallet to see your bets' : 'No recent flips'}</div>
+                  </div>
                 </div>
               ) : (
                 displayedFlips.map((flip, i) => (
