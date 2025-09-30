@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { NextAbstractWalletProvider } from "../src/components/agw-provider";
+// LOCAL TESTING ONLY: Using hybrid wallet provider for local development
+// TODO: SWITCH BACK TO NextAbstractWalletProvider WHEN GOING TO PRODUCTION
+import { HybridWalletProvider } from "../src/components/hybrid-wallet-provider";
 import { Toaster } from "../src/components/ui/sonner";
 
 export const metadata: Metadata = {
@@ -32,12 +34,12 @@ export default function RootLayout({
         <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
         <link rel="apple-touch-icon" href="/favicon-min.png" />
       </head>
-      <NextAbstractWalletProvider>
+      <HybridWalletProvider>
         <body suppressHydrationWarning>
           {children}
           <Toaster />
         </body>
-      </NextAbstractWalletProvider>
+      </HybridWalletProvider>
     </html>
   );
 }
