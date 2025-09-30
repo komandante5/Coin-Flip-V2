@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { usePathname } from 'next/navigation';
-import { ConnectWalletButton } from '@/components/connect-wallet-button';
+// LOCAL TESTING ONLY: Using unified connect wallet button for local development
+// TODO: SWITCH BACK TO ConnectWalletButton WHEN GOING TO PRODUCTION
+import { UnifiedConnectWalletButton } from '@/components/unified-connect-wallet-button';
 import { Menu, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -91,7 +93,7 @@ function NavigationComponent() {
           </div>
 
           <div className="scale-90 origin-right">
-            <ConnectWalletButton />
+            <UnifiedConnectWalletButton showWalletSelector={false} />
           </div>
         </div>
 
@@ -127,7 +129,7 @@ function NavigationComponent() {
           </nav>
 
           <div className="ml-auto">
-            <ConnectWalletButton />
+            <UnifiedConnectWalletButton showWalletSelector={false} />
           </div>
         </div>
       </div>
