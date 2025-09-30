@@ -1,13 +1,18 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback, memo } from "react";
-import { useWriteContract, usePublicClient, useReadContract, useAccount } from 'wagmi';
+import { useWriteContract, usePublicClient, useReadContract, useAccount, useSwitchChain, useBalance } from 'wagmi';
 import { parseEther, parseEventLogs, formatEther, type Abi, parseAbiItem } from 'viem';
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Sparkles } from "lucide-react";
 import Image from "next/image";
+import { toast } from 'sonner';
 import { PageLayout } from '@/components/layout/page-layout';
 import { SectionTitle } from '@/components/ui/section-title';
 import { Pill } from '@/components/ui/pill';
+// LOCAL TESTING ONLY: Wallet selector for local development
+// TODO: DELETE THIS WHEN GOING TO PRODUCTION - ONLY FOR LOCAL TESTING
+import { WalletSelector } from '@/components/wallet-selector';
+import { useWalletType } from '@/components/hybrid-wallet-provider';
 
 import coinFlipJson from '../src/abi/CoinFlip.json';
 import mockVrfJson from '../src/abi/MockVRF.json';
@@ -18,6 +23,9 @@ const mockVrfAbi = mockVrfJson.abi as Abi;
 
 const coinFlipAddress = (addresses as any).coinFlip as `0x${string}`;
 const mockVrfAddress = (addresses as any).mockVRF as `0x${string}`;
+
+// Feature flag for demo data (set to false to disable demo bets)
+const ENABLE_DEMO_FLIPS = false;
 
 type GameStatsArray = [bigint, bigint, bigint, bigint, bigint, bigint];
 type CoinSide = 'Heads' | 'Tails';
@@ -33,20 +41,143 @@ interface FlipEvent {
   timestamp: number;
 }
 
+// Custom hook for animated number counter
+function useAnimatedNumber(targetValue: number, duration: number = 600): number {
+  const [displayValue, setDisplayValue] = useState(targetValue);
+  const [prevTarget, setPrevTarget] = useState(targetValue);
+
+  useEffect(() => {
+    if (targetValue === prevTarget) return;
+
+    const startValue = displayValue;
+    const difference = targetValue - startValue;
+    const startTime = Date.now();
+    
+    // Calculate step size based on difference magnitude
+    // Larger differences = more steps per frame for smoother animation
+    const steps = Math.min(Math.abs(difference) * 10, 100);
+    const stepDuration = duration / steps;
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Ease-out function for smooth deceleration
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      const currentValue = startValue + (difference * easeOut);
+
+      setDisplayValue(currentValue);
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        setDisplayValue(targetValue);
+        setPrevTarget(targetValue);
+      }
+    };
+
+    requestAnimationFrame(animate);
+  }, [targetValue, duration, displayValue, prevTarget]);
+
+  return displayValue;
+}
+
+// Timestamp cache utility for local development
+// Stores real timestamps for bets to avoid "over a week ago" issue with local blockchain
+// 
+// TODO: REVISIT TIMESTAMP IMPLEMENTATION FOR PRODUCTION
+// ======================================================
+// Current Implementation: localStorage cache (client-side only)
+// - Works well for local development and testing
+// - Timestamps only accurate for bets made while user has page open
+// - Data persists in browser but not shared across users/devices
+// 
+// Future Options for Production:
+// 
+// OPTION A: Backend Database (Recommended for multi-user app)
+// - Set up indexer service (e.g., Ponder, The Graph, or custom Node.js)
+// - Listen to FlipCommitted events and store { requestId, timestamp } in database
+// - Frontend queries API for last 20 bets with accurate timestamps
+// - Pros: Accurate for all users, scalable, can add analytics
+// - Cons: Requires backend infrastructure
+// 
+// OPTION B: Smart Contract Modification
+// - Add timestamp field to FlipCommitted event in CoinFlip.sol
+// - Emit block.timestamp with each event
+// - Read timestamps directly from event logs
+// - Pros: Fully decentralized, no backend needed
+// - Cons: Requires contract redeployment, slightly higher gas costs
+// 
+// OPTION C: Enhanced Block Timestamp Handling
+// - For production networks (Abstract mainnet/testnet), block timestamps are reliable
+// - Keep current implementation but remove fallback logic
+// - Test on Abstract testnet to verify block.timestamp accuracy
+// - Pros: No changes needed if timestamps are accurate
+// - Cons: Depends on network behavior
+// 
+// Recommendation: Start with Option C on testnet, move to Option A if needed
+// ======================================================
+
+const TIMESTAMP_CACHE_KEY = 'coinflip_bet_timestamps';
+
+function getTimestampCache(): Record<string, number> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const cached = localStorage.getItem(TIMESTAMP_CACHE_KEY);
+    return cached ? JSON.parse(cached) : {};
+  } catch {
+    return {};
+  }
+}
+
+function setTimestampInCache(requestId: string, timestamp: number): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const cache = getTimestampCache();
+    cache[requestId] = timestamp;
+    localStorage.setItem(TIMESTAMP_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('Failed to cache timestamp:', error);
+  }
+}
+
+function getCachedTimestamp(requestId: string): number | null {
+  const cache = getTimestampCache();
+  return cache[requestId] || null;
+}
+
 
 function CoinflipPage() {
+  // LOCAL TESTING ONLY: Wallet type selection for local development
+  // TODO: DELETE THIS WHEN GOING TO PRODUCTION - ONLY FOR LOCAL TESTING
+  const { walletType, setWalletType } = useWalletType();
+  
+  // Avoid hydration mismatches by deferring client-only state
+  const [hasMounted, setHasMounted] = useState(false);
+
   const [selected, setSelected] = useState<CoinSide>('Heads');
   const [selectedForUI, setSelectedForUI] = useState<CoinSide>('Heads');
   const [amount, setAmount] = useState<string>("0.01");
   const [isFlipping, setIsFlipping] = useState(false);
-  const [isSpinning, setIsSpinning] = useState(false);
+  const [isRevealing, setIsRevealing] = useState(false);
+  const [flipResult, setFlipResult] = useState<CoinSide | null>(null);
+  const [currentRotation, setCurrentRotation] = useState(0);
+  const [revealAnimation, setRevealAnimation] = useState<string>('');
+  const [showWinCelebration, setShowWinCelebration] = useState(false);
+  const [showLoseCelebration, setShowLoseCelebration] = useState(false);
   const [recentFlips, setRecentFlips] = useState<FlipEvent[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'mine'>('all');
   const contentWrapperRef = useRef<HTMLDivElement | null>(null);
+  const [newBetIndices, setNewBetIndices] = useState<Set<number>>(new Set());
 
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
-  const { address } = useAccount();
+  const { address, isConnected, chain } = useAccount();
+  const { switchChain } = useSwitchChain();
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // Read min/max bet from contract with caching
   const { data: gameStats, refetch: refetchStats } = useReadContract({
@@ -59,47 +190,53 @@ function CoinflipPage() {
     }
   }) as { data: GameStatsArray | undefined, refetch: () => void };
 
+  // Get contract balance (bankroll)
+  const { data: contractBalance, refetch: refetchBalance } = useBalance({
+    address: coinFlipAddress,
+    query: {
+      refetchInterval: 10000, // Auto-refetch every 10 seconds
+    }
+  });
 
-  // DEMO-ONLY: Local mock data for recent bets when there are no events
-  // TODO: Remove this block and rely solely on on-chain logs once backend is wired
+  // Animated contract balance
+  const contractBalanceValue = contractBalance ? Number(formatEther(contractBalance.value)) : 0;
+  const animatedBalance = useAnimatedNumber(contractBalanceValue, 800);
+
+
+  // Simple demo data fallback for development when no events exist
+  // Controlled by ENABLE_DEMO_FLIPS feature flag
   const demoFlips = useMemo<FlipEvent[]>(() => {
+    // Only show demo data if feature flag is enabled and in development mode
+    if (!ENABLE_DEMO_FLIPS || process.env.NODE_ENV !== 'development') return [];
+    
     const now = Math.floor(Date.now() / 1000);
-    const demoAddressA = address ?? '0xA11ce0000000000000000000000000000000000';
-    const demoAddressB = '0xB0b0000000000000000000000000000000000001';
-    const demoAddressC = '0xC0c0000000000000000000000000000000000002';
-    const demoAddressD = '0xD0d0000000000000000000000000000000000003';
-    const demoAddressE = '0xE0e0000000000000000000000000000000000004';
-    const demoAddressF = '0xF0f0000000000000000000000000000000000005';
-    const demoAddressG = '0xF00d000000000000000000000000000000000006';
-    const demoAddressH = '0xCafe000000000000000000000000000000000007';
-    const mk = (player: string, amt: string, choice: 0 | 1, didWin?: boolean, secondsAgo: number = 60, id: number = 1): FlipEvent => ({
-      player,
-      betAmount: parseEther(amt),
-      choice,
-      result: didWin === undefined ? undefined : (Math.random() < 0.5 ? 0 : 1),
-      didWin,
-      payout: didWin ? (parseEther(amt) * BigInt(2)) : undefined,
-      requestId: BigInt(id),
-      timestamp: now - secondsAgo,
-    });
+    const demoAddress = address ?? '0x1234567890123456789012345678901234567890';
+    // Return in descending order (most recent first)
     return [
-      mk(demoAddressA, '0.10', 0, true, 120, 1),
-      mk(demoAddressB, '0.05', 1, false, 460, 2),
-      mk(demoAddressA, '0.25', 1, undefined, 30, 3), // pending example
-      mk(demoAddressB, '1.00', 0, true, 3600, 4),
-      mk(demoAddressC, '0.75', 1, false, 7200, 5),
-      mk(demoAddressD, '0.02', 0, true, 10, 6),
-      mk(demoAddressE, '0.33', 1, undefined, 5, 7), // pending
-      mk(demoAddressA, '0.50', 0, false, 20000, 8),
-      mk(demoAddressF, '2.50', 1, true, 90000, 9),
-      mk(demoAddressB, '0.15', 0, undefined, 15, 10), // pending
-      mk(demoAddressG, '0.05', 1, true, 240, 11),
-      mk(demoAddressH, '0.20', 0, false, 720, 12),
-      mk(demoAddressC, '0.08', 0, true, 180, 13),
-      mk(demoAddressE, '0.60', 1, false, 4200, 14),
-      mk(demoAddressD, '0.12', 1, undefined, 60, 15), // pending
+      {
+        player: demoAddress,
+        betAmount: parseEther('0.1'),
+        choice: 0,
+        result: 0,
+        didWin: true,
+        payout: parseEther('0.2'),
+        requestId: BigInt(2),
+        timestamp: now - 120, // 2 minutes ago (most recent)
+      },
+      {
+        player: '0x9876543210987654321098765432109876543210',
+        betAmount: parseEther('0.05'),
+        choice: 1,
+        result: 0,
+        didWin: false,
+        payout: undefined,
+        requestId: BigInt(1),
+        timestamp: now - 300, // 5 minutes ago (older)
+      },
     ];
   }, [address]);
+
+  
 
   // Memoize expensive calculations
   const { minBet, maxBet } = useMemo(() => {
@@ -114,9 +251,15 @@ function CoinflipPage() {
 
   // Memoized fetch function to prevent unnecessary re-creations
   const fetchRecentFlips = useCallback(async () => {
-    if (!publicClient) return;
+    if (!publicClient) {
+      console.log('No publicClient available for fetching flips');
+      return;
+    }
 
     try {
+      console.log('Fetching recent flips from blockchain...');
+      console.log('Contract address:', coinFlipAddress);
+      
       // Get recent committed events
       const commitLogs = await publicClient.getLogs({
         address: coinFlipAddress,
@@ -124,6 +267,8 @@ function CoinflipPage() {
         fromBlock: 'earliest',
         toBlock: 'latest'
       });
+
+      console.log(`Found ${commitLogs.length} commit events`);
 
       // Get recent revealed events
       const revealLogs = await publicClient.getLogs({
@@ -133,137 +278,467 @@ function CoinflipPage() {
         toBlock: 'latest'
       });
 
+      console.log(`Found ${revealLogs.length} reveal events`);
+
+      // CRITICAL FIX: Sort ALL commits by block number first to ensure correct ordering
+      // This prevents issues when there are more than 20 bets
+      const sortedCommits = [...commitLogs].sort((a, b) => {
+        // Sort by block number ascending (oldest first)
+        if (a.blockNumber !== b.blockNumber) {
+          return Number(a.blockNumber) - Number(b.blockNumber);
+        }
+        // If same block, sort by log index
+        return Number(a.logIndex || 0) - Number(b.logIndex || 0);
+      });
+
+      // Now get the last 20 (most recent) commits
+      const recentCommits = sortedCommits.slice(-20);
+      
       // Combine and process events
       const flips: FlipEvent[] = [];
       
-      for (const commitLog of commitLogs.slice(-10)) { // Get last 10
+      for (let i = 0; i < recentCommits.length; i++) {
+        const commitLog = recentCommits[i];
         const block = await publicClient.getBlock({ blockNumber: commitLog.blockNumber });
         // Match by requestId via decoded args (more robust than topic index)
         const revealLog = revealLogs.find((r: any) => (r?.args?.requestId) === (commitLog as any)?.args?.requestId);
         
+        const choiceValue = commitLog.args.choice as number;
+        const resultValue = revealLog?.args?.result as number | undefined;
+        const requestIdStr = commitLog.args.requestId?.toString() || '';
+        
+        // Smart timestamp handling: Use cached > block timestamp if valid > current time
+        let timestamp: number;
+        const cachedTimestamp = getCachedTimestamp(requestIdStr);
+        const blockTimestamp = Number(block.timestamp);
+        const now = Math.floor(Date.now() / 1000);
+        
+        if (cachedTimestamp) {
+          // Use cached timestamp (most reliable for bets we've seen)
+          timestamp = cachedTimestamp;
+        } else {
+          // Check if block timestamp is reasonable (within last 24 hours or not too far in future)
+          const isReasonable = blockTimestamp > 0 && 
+                              blockTimestamp > now - 86400 && 
+                              blockTimestamp <= now + 3600;
+          
+          if (isReasonable) {
+            // Use block timestamp if it seems valid
+            timestamp = blockTimestamp;
+          } else {
+            // Fallback to current time for unrealistic block timestamps
+            // Use block number to estimate relative time (newer blocks = more recent)
+            const blocksAgo = Number(recentCommits[recentCommits.length - 1].blockNumber) - Number(commitLog.blockNumber);
+            timestamp = now - (blocksAgo * 2); // Assume ~2 seconds per block
+          }
+          
+          // Cache this timestamp for future reference
+          setTimestampInCache(requestIdStr, timestamp);
+        }
+        
+        console.log(`Processing commit log ${i}:`, {
+          blockNumber: commitLog.blockNumber.toString(),
+          player: commitLog.args.player,
+          betAmount: commitLog.args.betAmount?.toString(),
+          choiceRaw: choiceValue,
+          choiceDecoded: choiceValue === 0 ? 'HEADS' : choiceValue === 1 ? 'TAILS' : 'UNKNOWN',
+          resultRaw: resultValue,
+          resultDecoded: resultValue === 0 ? 'HEADS' : resultValue === 1 ? 'TAILS' : resultValue === undefined ? 'PENDING' : 'UNKNOWN',
+          requestId: requestIdStr,
+          hasReveal: !!revealLog,
+          blockTimestamp: new Date(blockTimestamp * 1000).toLocaleString(),
+          cachedTimestamp: cachedTimestamp ? new Date(cachedTimestamp * 1000).toLocaleString() : 'none',
+          finalTimestamp: new Date(timestamp * 1000).toLocaleString()
+        });
+        
         flips.push({
           player: commitLog.args.player as string,
           betAmount: commitLog.args.betAmount as bigint,
-          choice: commitLog.args.choice as number,
-          result: revealLog?.args?.result as number | undefined,
+          choice: choiceValue,
+          result: resultValue,
           didWin: revealLog?.args?.didWin as boolean | undefined,
           payout: revealLog?.args?.payout as bigint | undefined,
           requestId: commitLog.args.requestId as bigint,
-          timestamp: Number(block.timestamp)
+          timestamp: timestamp
         });
       }
 
-      const ordered = flips.reverse(); // Most recent first
-      if (ordered.length === 0 && process.env.NODE_ENV !== 'production') {
-        setRecentFlips(demoFlips);
-      } else {
-        setRecentFlips(ordered);
-      }
+      // Sort by block timestamp descending (most recent first)
+      // Since we already sorted by block number and took last 20, reversing gives us newest first
+      const ordered = flips.reverse();
+      
+      console.log(`Processed ${ordered.length} flips for display (showing last 20 bets)`);
+      console.log('All 20 Recent flips:', ordered.map(f => ({
+        blockTimestamp: new Date(f.timestamp * 1000).toLocaleTimeString(),
+        player: f.player.slice(0, 10),
+        betAmount: formatEther(f.betAmount),
+        choiceRaw: f.choice,
+        choice: f.choice === 0 ? 'Heads' : 'Tails',
+        resultRaw: f.result,
+        result: f.result === 0 ? 'Heads' : f.result === 1 ? 'Tails' : 'Pending',
+        didWin: f.didWin,
+        requestId: f.requestId.toString()
+      })));
+      
+      // Detect new bets by comparing requestIds (more reliable than length)
+      setRecentFlips(prev => {
+        const prevRequestIds = new Set(prev.map(f => f.requestId.toString()));
+        const newIndices = new Set<number>();
+        
+        ordered.forEach((flip, index) => {
+          if (!prevRequestIds.has(flip.requestId.toString())) {
+            newIndices.add(index);
+          }
+        });
+        
+        if (newIndices.size > 0) {
+          setNewBetIndices(newIndices);
+          
+          // Clear animation flags after animation completes
+          setTimeout(() => {
+            setNewBetIndices(new Set());
+          }, 600);
+        }
+        
+        return ordered.length > 0 ? ordered : demoFlips;
+      });
     } catch (error) {
       console.error('Error fetching flip events:', error);
-      // Fall back to demo flips in dev if fetching failed
-      if (process.env.NODE_ENV !== 'production') {
-        setRecentFlips(demoFlips);
-      }
+      setRecentFlips(demoFlips);
     }
   }, [publicClient, demoFlips]);
 
   // Fetch recent flip events with reduced frequency
   useEffect(() => {
+    console.log('Initial fetch of recent flips');
     fetchRecentFlips();
-    // Reduce frequency to 30 seconds to minimize blockchain calls
-    const interval = setInterval(fetchRecentFlips, 30000);
+    const interval = setInterval(() => {
+      console.log('Auto-refreshing bet history (30s interval)');
+      fetchRecentFlips();
+    }, 30000);
     return () => clearInterval(interval);
   }, [fetchRecentFlips]);
 
-  // Debounced refetch function to prevent excessive calls
-  const memoizedRefetchStats = useCallback(() => {
-    refetchStats();
-  }, [refetchStats]);
+const memoizedRefetchStats = useCallback(() => {
+  refetchStats();
+}, [refetchStats]);
 
-  useEffect(() => {
-    // Reduce frequency to 30 seconds to minimize blockchain calls
-    const id = setInterval(memoizedRefetchStats, 30000);
-    return () => clearInterval(id);
-  }, [memoizedRefetchStats]);
+useEffect(() => {
+  const id = setInterval(memoizedRefetchStats, 30000);
+  return () => clearInterval(id);
+}, [memoizedRefetchStats]);
 
-
-
-  const handleCoinSelection = useCallback((side: CoinSide) => {
+const handleCoinSelection = useCallback((side: CoinSide) => {
     // Only animate if we're actually changing sides
     if (selectedForUI === side) return;
     
     // Immediately highlight the button for UI feedback
     setSelectedForUI(side);
+    setSelected(side);
     
-    // Trigger spinning animation
-    setIsSpinning(true);
-    
-    // Change the coin image halfway through the animation (when coin is edge-on)
-    setTimeout(() => {
-      setSelected(side);
-    }, 187); // Half of 375ms (50% faster)
-    
-    // Stop spinning after 0.375 seconds (50% faster)
-    setTimeout(() => {
-      setIsSpinning(false);
-    }, 375);
+    // Animate rotation change smoothly
+    // The CSS transition on the coin container will handle the smooth rotation
+    setCurrentRotation(side === 'Heads' ? 0 : 180);
   }, [selectedForUI]);
 
   const flip = useCallback(async () => {
-    if (!address) return;
+    if (!address) {
+      console.error('No wallet address found');
+      alert('Please connect your wallet first');
+      return;
+    }
     
+    if (!isConnected) {
+      console.error('Wallet not connected');
+      alert('Please connect your wallet first');
+      return;
+    }
+    
+    // Check if connected to the correct network
+    const expectedChainId = 260; // anvilZkSync (verified from Docker node)
+    if (chain?.id !== expectedChainId) {
+      console.error('Wrong network. Expected:', expectedChainId, 'Got:', chain?.id);
+      
+      // Try to switch to the correct chain
+      try {
+        console.log('Attempting to switch to chain:', expectedChainId);
+        await switchChain({ chainId: expectedChainId });
+        console.log('Successfully switched to chain:', expectedChainId);
+      } catch (error) {
+        console.error('Failed to switch chain:', error);
+        alert(`Please manually switch to the Anvil ZkSync network (Chain ID: ${expectedChainId}) in your wallet`);
+        return;
+      }
+    }
+    
+    // CRITICAL FIX: Capture selectedForUI at the moment of the button click
+    // This prevents stale closures from using old values
+    const userChoice = selectedForUI;
+    const side = userChoice === 'Heads' ? 0 : 1;
+    
+    console.log('=== FLIP DEBUG INFO ===');
+    console.log('User clicked choice:', userChoice);
+    console.log('Sending to contract: side =', side, '(0=HEADS, 1=TAILS)');
+    console.log('UI Selected (button highlighted):', selectedForUI);
+    console.log('Coin Display (selected state):', selected);
+    console.log('Amount:', amount);
+    console.log('Wallet type:', walletType);
+    console.log('Chain ID:', publicClient?.chain?.id);
+    console.log('======================');
+    
+    // Phase 1: Start fast spinning immediately
     setIsFlipping(true);
+    setIsRevealing(false);
+    setFlipResult(null);
+    setShowWinCelebration(false);
+    setShowLoseCelebration(false);
+    
+    // Show transaction toast with custom styling
+    toast.loading('Confirm transaction in your wallet...', {
+      id: 'flip-transaction',
+      duration: Infinity,
+      className: 'text-xl font-bold',
+      style: {
+        background: 'rgba(16, 185, 129, 0.1)',
+        border: '2px solid rgba(16, 185, 129, 0.3)',
+        padding: '20px 24px',
+        fontSize: '18px',
+      },
+    });
+    
     try {
-      const side = selected === 'Heads' ? 0 : 1;
+      console.log('>>> Calling flipCoin with:', { userChoice, side, amount: parseEther(amount) });
 
+      // First transaction - coin flip commit (coin spins fast during wallet confirmation)
       const txHash = await writeContractAsync({
         address: coinFlipAddress,
         abi: coinFlipAbi,
         functionName: 'flipCoin',
         args: [side],
-        value: parseEther(amount)
+        value: parseEther(amount),
+        gas: BigInt(500000) // Add explicit gas limit
       });
+      console.log('First transaction hash:', txHash);
 
+      // Transaction confirmed - start reveal process
+      console.log('Waiting for first transaction receipt...');
+      toast.loading('Transaction confirmed! Revealing result...', {
+        id: 'flip-transaction',
+        duration: Infinity,
+        className: 'text-xl font-bold',
+        style: {
+          background: 'rgba(16, 185, 129, 0.15)',
+          border: '2px solid rgba(16, 185, 129, 0.4)',
+          padding: '20px 24px',
+          fontSize: '18px',
+        },
+      });
       const receiptCommit = await publicClient!.waitForTransactionReceipt({ hash: txHash });
+      console.log('First transaction receipt:', receiptCommit);
+      
       const commitEvents = parseEventLogs({
         abi: coinFlipAbi,
         logs: receiptCommit.logs,
         eventName: 'FlipCommitted'
       });
+      console.log('Commit events:', commitEvents);
+      
       const requestId = (commitEvents[0]?.args as any)?.requestId as bigint;
-      if (!requestId) return;
+      if (!requestId) {
+        throw new Error('Failed to get request ID from FlipCommitted event');
+      }
+      console.log('Request ID:', requestId);
+      
+      // Cache the current timestamp for this bet (so it shows "just now")
+      const currentTimestamp = Math.floor(Date.now() / 1000);
+      setTimestampInCache(requestId.toString(), currentTimestamp);
+      console.log('Cached timestamp for new bet:', requestId.toString(), new Date(currentTimestamp * 1000).toLocaleString());
+      
+      // Immediately fetch bet history to show the pending bet
+      console.log('Fetching bet history to show pending bet...');
+      await fetchRecentFlips();
 
+      // Second transaction for VRF callback (still spinning fast)
       const randomNumber = BigInt(Math.floor(Math.random() * 2 ** 32));
+      console.log('Calling triggerCallback with args:', { 
+        target: coinFlipAddress, 
+        requestId, 
+        randomNumber 
+      });
+      
       const txHash2 = await writeContractAsync({
         address: mockVrfAddress,
         abi: mockVrfAbi,
         functionName: 'triggerCallback',
-        args: [coinFlipAddress, requestId, randomNumber]
+        args: [coinFlipAddress, requestId, randomNumber],
+        gas: BigInt(300000) // Add explicit gas limit
       });
+      console.log('Second transaction hash:', txHash2);
 
-      await publicClient!.waitForTransactionReceipt({ hash: txHash2 });
-      setTimeout(() => {
-        memoizedRefetchStats();
-        // Refresh recent flips after a short delay
-        setTimeout(() => fetchRecentFlips(), 1000);
-      }, 1000);
+      const receipt = await publicClient!.waitForTransactionReceipt({ hash: txHash2 });
+      
+      // Parse the result from the FlipRevealed event
+      const revealEvents = parseEventLogs({
+        abi: coinFlipAbi,
+        logs: receipt.logs,
+        eventName: 'FlipRevealed'
+      });
+      
+      if (revealEvents.length > 0) {
+        const event = revealEvents[0].args as any;
+        const result = event.result === 0 ? 'Heads' : 'Tails';
+        const didWin = event.didWin as boolean;
+        const payout = event.payout as bigint;
+        
+        console.log('=== FLIP RESULT ===');
+        console.log('User chose:', userChoice);
+        console.log('Result was:', result);
+        console.log('Did win:', didWin);
+        console.log('Payout:', payout.toString());
+        console.log('==================');
+        
+        // Dismiss loading toast
+        toast.dismiss('flip-transaction');
+        
+        // Phase 2: Both transactions confirmed - start reveal animation
+        // Determine which animation to use based on starting position and result
+        // This ensures predictable, smooth animation with no sudden corrections
+        const startingSide = selected; // What coin face we're starting from
+        let animationClass = '';
+        
+        if (startingSide === 'Heads' && result === 'Heads') {
+          animationClass = 'animate-reveal-heads-to-heads';
+        } else if (startingSide === 'Heads' && result === 'Tails') {
+          animationClass = 'animate-reveal-heads-to-tails';
+        } else if (startingSide === 'Tails' && result === 'Heads') {
+          animationClass = 'animate-reveal-tails-to-heads';
+        } else { // startingSide === 'Tails' && result === 'Tails'
+          animationClass = 'animate-reveal-tails-to-tails';
+        }
+        
+        console.log('=== REVEAL ANIMATION INFO ===');
+        console.log('Starting side:', startingSide, '(rotation:', currentRotation, ')');
+        console.log('Result side:', result);
+        console.log('Animation class:', animationClass);
+        console.log('============================');
+        
+        setRevealAnimation(animationClass);
+        setIsRevealing(true);
+        
+        // Set the result to be shown at 2.5 seconds into the reveal animation
+        setTimeout(() => {
+          setFlipResult(result);
+          
+          // Show result toast with enhanced styling
+          if (didWin) {
+            toast.success(`🎉 You won ${Number(formatEther(payout)).toFixed(4)} ETH!`, {
+              duration: 5000,
+              className: 'text-2xl font-black',
+              style: {
+                background: 'rgba(16, 185, 129, 0.2)',
+                border: '3px solid rgba(16, 185, 129, 0.6)',
+                padding: '24px 32px',
+                fontSize: '20px',
+              },
+            });
+          } else {
+            toast.error(`Better luck next time!`, {
+              duration: 3000,
+              className: 'text-xl font-bold',
+              style: {
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '2px solid rgba(239, 68, 68, 0.4)',
+                padding: '20px 24px',
+                fontSize: '18px',
+              },
+            });
+          }
+        }, 2500);
+        
+        // Complete the animation at 3 seconds
+        setTimeout(() => {
+          setIsFlipping(false);
+          setIsRevealing(false);
+          setRevealAnimation('');
+          // Update the coin to show the actual result and keep it displayed
+          setSelected(result);
+          setFlipResult(null);
+          // Set final rotation based on result: Heads = 0°, Tails = 180°
+          // The animation already landed on the correct face, we just maintain it
+          setCurrentRotation(result === 'Heads' ? 0 : 180);
+          
+          // Show celebration for wins or loses
+          if (didWin) {
+            setShowWinCelebration(true);
+            setTimeout(() => setShowWinCelebration(false), 3000);
+          } else {
+            setShowLoseCelebration(true);
+            setTimeout(() => setShowLoseCelebration(false), 3000);
+          }
+        }, 3000);
+        
+        // IMPORTANT: Wait until reveal animation completes before updating UI
+        // This prevents bet history and balance from updating while coin is still revealing
+        setTimeout(() => {
+          console.log('Reveal animation completed, refreshing stats and bet history...');
+          memoizedRefetchStats();
+          refetchBalance(); // Update contract balance
+          fetchRecentFlips(); // Refresh bet history after reveal
+        }, 3000); // Match the reveal animation duration
+      } else {
+        throw new Error('No FlipRevealed event found in transaction receipt');
+      }
     } catch (error) {
       console.error('Error flipping coin:', error);
-    } finally {
-      setIsFlipping(false);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        address,
+        selected,
+        amount
+      });
+      
+      // Dismiss loading toast
+      toast.dismiss('flip-transaction');
+      
+      // Show error state for 3 seconds before resetting
+      setTimeout(() => {
+        setIsFlipping(false);
+        setIsRevealing(false);
+        setRevealAnimation('');
+        setFlipResult(null);
+      }, 3000);
+      
+      // Show user-friendly error toast
+      const errorMessage = error instanceof Error ? error.message : 'Transaction failed';
+      toast.error(`Transaction failed: ${errorMessage}`, {
+        duration: 5000,
+        description: 'Make sure your wallet is connected and you have enough ETH',
+        className: 'text-xl font-bold',
+        style: {
+          background: 'rgba(239, 68, 68, 0.15)',
+          border: '2px solid rgba(239, 68, 68, 0.5)',
+          padding: '20px 24px',
+          fontSize: '18px',
+        },
+      });
     }
-  }, [address, selected, amount, writeContractAsync, publicClient, memoizedRefetchStats, fetchRecentFlips]);
+  }, [address, selectedForUI, amount, writeContractAsync, publicClient, memoizedRefetchStats, fetchRecentFlips, isConnected, chain, switchChain, refetchBalance, walletType]);
 
   // Memoized utility functions
   const formatAddress = useCallback((addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`, []);
   const formatTimeAgo = useCallback((timestamp: number) => {
     const now = Math.floor(Date.now() / 1000);
     const diff = now - timestamp;
+    
+    // Handle invalid/future timestamps
+    if (diff < 0 || timestamp === 0) return 'Just now';
+    
     if (diff < 60) return `${diff}s ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`; // Less than 7 days
+    return 'Over a week ago';
   }, []);
 
   const displayedFlips = useMemo(() => {
@@ -283,31 +758,185 @@ function CoinflipPage() {
 
   return (
     <PageLayout>
+      {/* LOCAL TESTING ONLY: Wallet selector for local development */}
+      {/* TODO: DELETE THIS WHEN GOING TO PRODUCTION - ONLY FOR LOCAL TESTING */}
+      <div className="fixed bottom-4 left-4 z-50 flex flex-col gap-2">
+        <WalletSelector
+          currentWalletType={walletType}
+          onWalletTypeChange={setWalletType}
+          className="bg-black/90 backdrop-blur-sm border border-white/30 shadow-xl"
+        />
+        
+        {/* Network status indicator */}
+        {hasMounted && isConnected && (
+          <div className={`px-3 py-2 rounded-lg text-xs font-medium bg-black/90 backdrop-blur-sm border shadow-xl ${
+            chain?.id === 260 
+              ? 'border-emerald-500/50 text-emerald-400' 
+              : 'border-amber-500/50 text-amber-400'
+          }`}>
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${
+                chain?.id === 260 ? 'bg-emerald-500' : 'bg-amber-500'
+              }`} />
+              <span>
+                {chain?.id === 260 
+                  ? `Connected: ${chain.name}` 
+                  : `Wrong Network (ID: ${chain?.id || 'Unknown'})`
+                }
+              </span>
+            </div>
+            {chain?.id !== 260 && (
+              <button
+                onClick={() => switchChain({ chainId: 260 })}
+                className="mt-2 w-full px-2 py-1 text-xs bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 rounded transition-colors"
+              >
+                Switch to Anvil ZkSync
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      
       <main className="relative z-10 mx-auto w-full px-fluid-4 lg:px-fluid-6 xl:px-fluid-8 py-fluid-4 lg:py-fluid-6 grid grid-cols-12 gap-fluid-4 lg:gap-fluid-6 flex-1" style={{ maxWidth: 'min(98vw, var(--container-3xl))' }}>
         {/* Main game panel - appears first on mobile, second on desktop */}
         <section className="col-span-12 md:col-span-8 lg:col-span-8 xl:col-span-8 order-1 md:order-2">
           <div className="flex flex-col items-center">
             {/* Floating coin visual - responsive sizing */}
-            <div className="relative w-full flex items-center justify-center" style={{ height: 'clamp(120px, 12vw + 60px, 180px)' }}>
+            <div className="relative w-full flex items-center justify-center" style={{ height: 'clamp(180px, 20vw + 80px, 240px)' }}>
               
-              {/* Coin image in center */}
-              <div className={`relative z-10 rounded-full overflow-hidden shadow-2xl ${isFlipping ? 'animate-spin' : ''} ${isSpinning ? 'animate-coin-spin' : ''}`} style={{ width: 'var(--coin-size)', height: 'var(--coin-size)' }}>
-                <Image
-                  src={selected === 'Heads' ? '/Heads.png' : '/Tails.png'}
-                  alt={selected}
-                  width={288}
-                  height={288}
-                  className="w-full h-full object-cover"
-                  priority
-                  sizes="(max-width: 768px) 120px, (max-width: 1200px) 150px, 180px"
-                />
+              {/* Coin image in center - 3D container for both sides */}
+              <div 
+                className={`relative z-10 ${isFlipping && !isRevealing ? 'animate-coin-flip-fast' : ''} ${isRevealing ? revealAnimation : ''}`} 
+                style={{ 
+                  width: 'var(--coin-size)', 
+                  height: 'var(--coin-size)',
+                  transformStyle: 'preserve-3d',
+                  perspective: '1000px',
+                  transform: (!isFlipping && !isRevealing) ? `rotateY(${currentRotation}deg)` : undefined,
+                  transition: (!isFlipping && !isRevealing) ? 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none'
+                }}
+              >
+                {/* Heads side */}
+                <div 
+                  className="absolute inset-0 rounded-full overflow-hidden shadow-2xl"
+                  style={{ 
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                    transform: 'rotateY(0deg)'
+                  }}
+                >
+                  <Image
+                    src="/Heads.png"
+                    alt="Heads"
+                    width={288}
+                    height={288}
+                    className="w-full h-full object-cover"
+                    priority
+                    sizes="(max-width: 768px) 120px, (max-width: 1200px) 150px, 180px"
+                  />
+                </div>
+                
+                {/* Tails side - rotated 180 degrees on Y-axis */}
+                <div 
+                  className="absolute inset-0 rounded-full overflow-hidden shadow-2xl"
+                  style={{ 
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                    transform: 'rotateY(180deg)'
+                  }}
+                >
+                  <Image
+                    src="/Tails.png"
+                    alt="Tails"
+                    width={288}
+                    height={288}
+                    className="w-full h-full object-cover"
+                    priority
+                    sizes="(max-width: 768px) 120px, (max-width: 1200px) 150px, 180px"
+                  />
+                </div>
               </div>
               
-              {isFlipping && (
-                <div className="absolute text-center z-20" style={{ marginTop: 'calc(var(--coin-size) + var(--space-4))' }}>
-                  <div className="text-fluid-xl font-bold text-emerald-300">Flipping...</div>
-                  <div className="text-fluid-sm text-neutral-400 mt-1">Waiting for result</div>
-                </div>
+              {/* Win celebration effect */}
+              {showWinCelebration && (
+                <>
+                  {/* Confetti particles */}
+                  <div className="absolute inset-0 pointer-events-none z-30">
+                    {[...Array(50)].map((_, i) => {
+                      const angle = (i / 50) * Math.PI * 2;
+                      const velocity = 100 + Math.random() * 150;
+                      const tx = Math.cos(angle) * velocity;
+                      const ty = Math.sin(angle) * velocity;
+                      return (
+                        <div
+                          key={i}
+                          className="absolute w-2 h-2 rounded-full"
+                          style={{
+                            left: '50%',
+                            top: '50%',
+                            backgroundColor: ['#10b981', '#14b8a6', '#06b6d4', '#f59e0b', '#f97316'][i % 5],
+                            animation: `confetti-${i % 5} ${0.8 + Math.random() * 0.4}s ease-out forwards`,
+                            animationDelay: `${i * 0.02}s`,
+                            '--tx': `${tx}px`,
+                            '--ty': `${ty}px`,
+                          } as React.CSSProperties}
+                        />
+                      );
+                    })}
+                  </div>
+                  {/* Glow effect */}
+                  <div className="absolute inset-0 pointer-events-none z-20">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] h-[200%] bg-emerald-400/20 rounded-full blur-3xl animate-pulse" />
+                  </div>
+                  {/* Win text */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
+                    <div className="flex items-center gap-2 text-4xl font-black text-emerald-300 animate-bounce">
+                      <Sparkles className="w-8 h-8" />
+                      <span>WIN!</span>
+                      <Sparkles className="w-8 h-8" />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Lose celebration effect */}
+              {showLoseCelebration && (
+                <>
+                  {/* Falling particles */}
+                  <div className="absolute inset-0 pointer-events-none z-30">
+                    {[...Array(40)].map((_, i) => {
+                      const angle = (i / 40) * Math.PI * 2;
+                      const velocity = 80 + Math.random() * 100;
+                      const tx = Math.cos(angle) * velocity;
+                      const ty = Math.sin(angle) * velocity + 50; // Bias downward
+                      return (
+                        <div
+                          key={i}
+                          className="absolute w-2 h-2 rounded-full"
+                          style={{
+                            left: '50%',
+                            top: '50%',
+                            backgroundColor: ['#ef4444', '#dc2626', '#991b1b', '#7f1d1d', '#450a0a'][i % 5],
+                            animation: `confetti-${i % 5} ${1.0 + Math.random() * 0.5}s ease-in forwards`,
+                            animationDelay: `${i * 0.015}s`,
+                            '--tx': `${tx}px`,
+                            '--ty': `${ty}px`,
+                          } as React.CSSProperties}
+                        />
+                      );
+                    })}
+                  </div>
+                  {/* Dark glow effect */}
+                  <div className="absolute inset-0 pointer-events-none z-20">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] h-[200%] bg-red-500/15 rounded-full blur-3xl animate-pulse" />
+                  </div>
+                  {/* Lose text */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
+                    <div className="text-3xl font-black text-red-400 animate-fade-in-out">
+                      <span>LOSE</span>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
 
@@ -406,6 +1035,18 @@ function CoinflipPage() {
                   <div className="mt-1 text-center text-fluid-xs text-neutral-400">
                     Min: {minBet.toFixed(4)} ETH • Max: {maxBet.toFixed(4)} ETH
                   </div>
+                  {hasMounted && contractBalance && (
+                    <div className="mt-2 text-center">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                        <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-fluid-xs font-medium text-emerald-300">
+                          Contract Bankroll: {animatedBalance.toFixed(4)} ETH
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -435,9 +1076,18 @@ function CoinflipPage() {
 
             {/* Flip button */}
             <div className="mt-fluid-4 lg:mt-fluid-5 w-full mx-auto" style={{ maxWidth: 'min(100%, 400px)' }}>
+              {/* Debug info */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mb-2 text-xs text-neutral-400 text-center">
+                  {address ? `Connected: ${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'} | 
+                  Chain: {chain?.id || 'Unknown'} | 
+                  Type: {walletType}
+                </div>
+              )}
+              
               <button 
                 onClick={flip}
-                disabled={!address || !amount || Number(amount) < minBet || Number(amount) > maxBet || isFlipping}
+                disabled={!hasMounted || !address || !isConnected || !amount || Number(amount) < minBet || Number(amount) > maxBet || isFlipping}
                 className="w-full rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 hover:from-emerald-400 hover:via-teal-300 hover:to-emerald-400 transition-all duration-300 text-black font-bold text-fluid-lg lg:text-fluid-xl flex items-center justify-center gap-fluid-3 shadow-[0_0_60px_-15px_rgba(16,185,129,0.8)] hover:shadow-[0_0_80px_-10px_rgba(16,185,129,1)] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 relative overflow-hidden group"
                 style={{ height: 'var(--button-height)' }}
               >
@@ -505,7 +1155,10 @@ function CoinflipPage() {
                 </div>
               ) : (
                 displayedFlips.map((flip, i) => (
-                  <div key={i} className="px-fluid-3 py-fluid-3">
+                  <div 
+                    key={i} 
+                    className={`px-fluid-3 py-fluid-3 ${newBetIndices.has(i) ? 'animate-bet-slide-in' : ''}`}
+                  >
                     <div className="flex items-center justify-between">
                       <div className="text-fluid-xs text-neutral-400 truncate max-w-[60%]">{formatAddress(flip.player)}</div>
                       <div className="text-fluid-xs text-neutral-500 whitespace-nowrap">{formatTimeAgo(flip.timestamp)}</div>
@@ -558,11 +1211,109 @@ function CoinflipPage() {
       {/* animations */}
       <style jsx>{`
         .animate-spin-slow { animation: spin 16s linear infinite; }
-        .animate-coin-spin { animation: coin-spin 0.375s ease-in-out; }
+        .animate-coin-flip-fast { animation: coin-flip-fast 1s linear infinite; }
+        .animate-bet-slide-in { animation: bet-slide-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .animate-fade-in-out { animation: fade-in-out 2s ease-in-out; }
+        
+        /* 
+         * DETERMINISTIC REVEAL ANIMATIONS
+         * These ensure smooth, predictable flips with no sudden corrections
+         * 8 full rotations (2880°) for dramatic effect
+         * Smooth ease-out curve for natural deceleration
+         * Heads = 0° or multiples of 360°
+         * Tails = 180° or (360° * n + 180°)
+         */
+        
+        /* Heads → Heads: 0° to 2880° (8 rotations, lands on Heads at 0°) 
+           Gentle ease-out with minimal acceleration at start for smooth transition */
+        .animate-reveal-heads-to-heads { animation: reveal-heads-to-heads 3s cubic-bezier(0.4, 0.2, 0.5, 1) forwards; }
+        
+        /* Heads → Tails: 0° to 3060° (8.5 rotations, lands on Tails at 180°) 
+           Gentle ease-out with minimal acceleration at start for smooth transition */
+        .animate-reveal-heads-to-tails { animation: reveal-heads-to-tails 3s cubic-bezier(0.4, 0.2, 0.5, 1) forwards; }
+        
+        /* Tails → Heads: 180° to 2880° (7.5 rotations from Tails, lands on Heads at 0°) 
+           Gentle ease-out with minimal acceleration at start for smooth transition */
+        .animate-reveal-tails-to-heads { animation: reveal-tails-to-heads 3s cubic-bezier(0.4, 0.2, 0.5, 1) forwards; }
+        
+        /* Tails → Tails: 180° to 3060° (8 rotations from Tails, lands on Tails at 180°) 
+           Gentle ease-out with minimal acceleration at start for smooth transition */
+        .animate-reveal-tails-to-tails { animation: reveal-tails-to-tails 3s cubic-bezier(0.4, 0.2, 0.5, 1) forwards; }
+        
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes coin-spin { 
+        
+        /* Smooth flip during transaction - 3 rotations (1080°) per second */
+        @keyframes coin-flip-fast {
           0% { transform: rotateY(0deg); }
-          100% { transform: rotateY(180deg) scaleX(-1); }
+          100% { transform: rotateY(1080deg); }
+        }
+        
+        /* Heads (0°) → Heads (2880° = 0°) - 8 full rotations 
+           Smooth deceleration with ease-out curve handled by CSS timing function */
+        @keyframes reveal-heads-to-heads {
+          0% { transform: rotateY(0deg); }
+          100% { transform: rotateY(2880deg); }
+        }
+        
+        /* Heads (0°) → Tails (3060° = 180°) - 8.5 rotations 
+           Smooth deceleration with ease-out curve handled by CSS timing function */
+        @keyframes reveal-heads-to-tails {
+          0% { transform: rotateY(0deg); }
+          100% { transform: rotateY(3060deg); }
+        }
+        
+        /* Tails (180°) → Heads (2880° = 0°) - 7.5 rotations 
+           Smooth deceleration with ease-out curve handled by CSS timing function */
+        @keyframes reveal-tails-to-heads {
+          0% { transform: rotateY(180deg); }
+          100% { transform: rotateY(2880deg); }
+        }
+        
+        /* Tails (180°) → Tails (3060° = 180°) - 8 full rotations 
+           Smooth deceleration with ease-out curve handled by CSS timing function */
+        @keyframes reveal-tails-to-tails {
+          0% { transform: rotateY(180deg); }
+          100% { transform: rotateY(3060deg); }
+        }
+        @keyframes bet-slide-in {
+          0% {
+            opacity: 0;
+            transform: translateX(-20px) scale(0.95);
+          }
+          50% {
+            opacity: 0.8;
+            transform: translateX(5px) scale(1.02);
+          }
+          100% {
+            opacity: 1;
+            transform: translateX(0) scale(1);
+          }
+        }
+        @keyframes confetti-0 {
+          0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) rotate(360deg); opacity: 0; }
+        }
+        @keyframes confetti-1 {
+          0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) rotate(540deg); opacity: 0; }
+        }
+        @keyframes confetti-2 {
+          0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) rotate(720deg); opacity: 0; }
+        }
+        @keyframes confetti-3 {
+          0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) rotate(900deg); opacity: 0; }
+        }
+        @keyframes confetti-4 {
+          0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) rotate(1080deg); opacity: 0; }
+        }
+        @keyframes fade-in-out {
+          0% { opacity: 0; transform: scale(0.9); }
+          20% { opacity: 1; transform: scale(1); }
+          80% { opacity: 1; transform: scale(1); }
+          100% { opacity: 0; transform: scale(0.9); }
         }
       `}</style>
     </PageLayout>
