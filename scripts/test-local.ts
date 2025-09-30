@@ -6,9 +6,8 @@ import { readFile } from "node:fs/promises";
 async function main() {
   console.log("Testing CoinFlip locally (viem)...");
 
-  // Connect and get viem helpers + common clients.
-  const connection = await hre.network.connect();
-  const { viem } = connection;
+  // Get viem helpers from hardhat runtime environment.
+  const { viem } = hre;
 
   // Grab a few funded accounts: owner (deployer), plus players.
   const [owner, player1, player2] = await viem.getWalletClients();
@@ -73,10 +72,14 @@ async function main() {
   });
   await publicClient.waitForTransactionReceipt({ hash: flipHash1 });
 
-  // Find the latest FlipCommitted to get the requestId needed for the VRF callback.
-  const committed1 = await coinFlip.getEvents.FlipCommitted();
-  const reqId1 = committed1[committed1.length - 1]?.args.requestId;
+  // Get the request ID from MockVRF - it should be the current counter before we trigger callback
+  const nextRequestId = await mockVRF.read.getNextRequestId();
+  const reqId1 = nextRequestId - 1n; // The request we just made
   console.log(`FlipCommitted requestId: ${reqId1}`);
+  
+  if (!reqId1 || reqId1 <= 0n) {
+    throw new Error("Failed to get valid request ID");
+  }
 
   // Trigger VRF with a random number; the contract will derive HEADS/TAILS.
   const rand1 = BigInt(Math.floor(Math.random() * 1_000_000));
@@ -105,8 +108,14 @@ async function main() {
   });
   await publicClient.waitForTransactionReceipt({ hash: flipHash2 });
 
-  const committed2 = await coinFlip.getEvents.FlipCommitted();
-  const reqId2 = committed2[committed2.length - 1]?.args.requestId;
+  // Get the request ID from MockVRF - it should be the current counter before we trigger callback
+  const nextRequestId2 = await mockVRF.read.getNextRequestId();
+  const reqId2 = nextRequestId2 - 1n; // The request we just made
+  console.log(`FlipCommitted requestId: ${reqId2}`);
+  
+  if (!reqId2 || reqId2 <= 0n) {
+    throw new Error("Failed to get valid request ID");
+  }
 
   const rand2 = BigInt(Math.floor(Math.random() * 1_000_000));
   const cbHash2 = await mockVRF.write.triggerCallback([

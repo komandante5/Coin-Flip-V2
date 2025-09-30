@@ -6,9 +6,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 async function main() {
   console.log("Deploying CoinFlip to Sepolia testnet...");
 
-  // Connect to Sepolia network
-  const connection = await hre.network.connect();
-  const { viem } = connection;
+  // Get viem helpers from hardhat runtime environment
+  const { viem } = hre;
 
   // Get the deployer account
   const [owner] = await viem.getWalletClients();

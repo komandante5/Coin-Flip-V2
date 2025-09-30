@@ -4,12 +4,107 @@ import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 
 async function main() {
-  console.log("Deploying CoinFlip + MockVRF to local Hardhat network (viem)...");
+  console.log("Deploying CoinFlip + MockVRF to ZKsync network...");
 
-  // Establish a connection to the currently selected network and get viem helpers.
-  const connection = await hre.network.connect();
-  const { viem } = connection;
+  // Check if we're on a ZKsync network
+  const isZkSync = hre.network.config.zksync;
+  console.log(`Network: ${hre.network.name}, ZKsync: ${isZkSync}`);
 
+  if (isZkSync) {
+    // For ZKsync networks, use zkSync-specific deployment
+    await deployWithZkSync();
+  } else {
+    // For regular networks, use standard viem deployment
+    await deployWithViem();
+  }
+}
+
+async function deployWithZkSync() {
+  console.log("Using ZKsync deployment method...");
+  
+  // Import ZKsync deployer
+  const { Deployer } = await import("@matterlabs/hardhat-zksync");
+  const { Wallet, Provider } = await import("zksync-ethers");
+  
+  // Get the first account from hardhat config
+  const accounts = hre.network.config.accounts as string[];
+  if (!accounts || accounts.length === 0) {
+    throw new Error("No accounts configured for this network");
+  }
+  
+  // Create provider for the ZKsync network
+  const provider = new Provider(hre.network.config.url);
+  
+  // Create wallet using the first private key and connect to provider
+  const wallet = new Wallet(accounts[0], provider);
+  console.log(`Owner (deployer): ${wallet.address}`);
+  
+  // Create deployer instance
+  const deployer = new Deployer(hre, wallet);
+  
+  // 1) Deploy MockVRF
+  console.log("Deploying MockVRF...");
+  const mockVRFArtifact = await deployer.loadArtifact("MockVRF");
+  const mockVRF = await deployer.deploy(mockVRFArtifact, []);
+  console.log(`MockVRF deployed at: ${await mockVRF.getAddress()}`);
+  
+  // 2) Deploy CoinFlip with constructor parameters
+  console.log("Deploying CoinFlip...");
+  const coinFlipArtifact = await deployer.loadArtifact("CoinFlip");
+  const coinFlip = await deployer.deploy(coinFlipArtifact, [
+    wallet.address,
+    await mockVRF.getAddress()
+  ]);
+  console.log(`CoinFlip deployed at: ${await coinFlip.getAddress()}`);
+  
+  // 3) Fund CoinFlip contract
+  console.log("Funding CoinFlip with 10 ETH...");
+  const fundTx = await coinFlip.depositFunds({ value: parseEther("10") });
+  await fundTx.wait();
+  
+  // 4) Read contract state
+  const balance = await coinFlip.contractBalance();
+  const gameStats = await coinFlip.getGameStats();
+  
+  console.log("Deployment summary:");
+  console.log(`- Owner: ${wallet.address}`);
+  console.log(`- MockVRF: ${await mockVRF.getAddress()}`);
+  console.log(`- CoinFlip: ${await coinFlip.getAddress()}`);
+  console.log(`- Contract Balance: ${formatEther(balance)} ETH`);
+  
+  console.log("Game parameters:");
+  console.log(`- House Edge: ${Number(gameStats[0]) / 1e6}%`);
+  console.log(`- Win Chance: ${Number(gameStats[1]) / 1e6}%`);
+  console.log(`- Payout Multiplier: ${Number(gameStats[2]) / 1e8}x`);
+  console.log(`- Min Bet: ${formatEther(gameStats[4])} ETH`);
+  console.log(`- Max Bet: ${formatEther(gameStats[5])} ETH`);
+  
+  // 5) Save deployment addresses
+  const outDir = path.join(process.cwd(), "deployments");
+  await mkdir(outDir, { recursive: true });
+  const outFile = path.join(outDir, "localhost.json");
+  await writeFile(
+    outFile,
+    JSON.stringify(
+      {
+        network: "localhost",
+        coinFlip: await coinFlip.getAddress(),
+        mockVRF: await mockVRF.getAddress(),
+        owner: wallet.address
+      },
+      null,
+      2
+    )
+  );
+  console.log(`Addresses saved to ${outFile}`);
+}
+
+async function deployWithViem() {
+  console.log("Using standard viem deployment method...");
+  
+  // Get viem helpers from hardhat runtime environment.
+  const { viem } = hre;
+  
   // The first wallet client is used as the deployer/owner.
   const [owner] = await viem.getWalletClients();
   console.log(`Owner (deployer): ${owner.account.address}`);

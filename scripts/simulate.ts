@@ -15,8 +15,7 @@ async function main() {
   const betEth = String(process.env.BET ?? process.argv[3] ?? "0.1");
   const initialBankrollEth = String(process.env.BANKROLL ?? process.argv[4] ?? "100");
 
-  const connection = await hre.network.connect();
-  const { viem } = connection;
+  const { viem } = hre;
   const [owner, player] = await viem.getWalletClients();
   const publicClient = await viem.getPublicClient();
 
@@ -91,18 +90,20 @@ async function main() {
     });
     await publicClient.waitForTransactionReceipt({ hash: flipHash });
 
-    // Get the requestId of this bet
-    const commits = await coinFlip.getEvents.FlipCommitted();
-    const reqId = commits[commits.length - 1]?.args.requestId;
-    if (!reqId) throw new Error("Failed to obtain requestId");
+    // Get the request ID from MockVRF - it should be the current counter before we trigger callback
+    const nextRequestId = await mockVRF.read.getNextRequestId();
+    const reqId = nextRequestId - 1n; // The request we just made
+    if (!reqId || reqId <= 0n) throw new Error("Failed to obtain valid requestId");
 
     // Trigger VRF callback with random number
     const rand = BigInt(Math.floor(Math.random() * 2 ** 31));
     const cbHash = await mockVRF.write.triggerCallback([coinFlip.address, reqId, rand]);
     await publicClient.waitForTransactionReceipt({ hash: cbHash });
 
+    // Get the latest FlipRevealed event
     const reveals = await coinFlip.getEvents.FlipRevealed();
     const last = reveals[reveals.length - 1];
+    if (!last) throw new Error("Failed to find FlipRevealed event");
     const didWin: boolean = last.args.didWin;
     const payout: bigint = last.args.payout;
 
