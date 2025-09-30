@@ -30,12 +30,19 @@ coverage/
 
 # Hardhat Build Artifacts
 /artifacts
+/artifacts-zk
 
 # Hardhat compilation (v2) support directory
 /cache
+/cache-zk
 
 # Typechain output
 /types
 
 # Hardhat coverage reports
 /coverage
+
+# Local deployment artifacts
+/deployments-zk
+**/deployments/localhost.json
+**/deployments.localhost.json
