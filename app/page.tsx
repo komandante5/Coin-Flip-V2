@@ -875,7 +875,10 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                             left: '50%',
                             top: '50%',
                             backgroundColor: ['#10b981', '#14b8a6', '#06b6d4', '#f59e0b', '#f97316'][i % 5],
-                            animation: `confetti-${i % 5} ${0.8 + Math.random() * 0.4}s ease-out forwards`,
+                            animationName: `confetti-${i % 5}`,
+                            animationDuration: `${0.8 + Math.random() * 0.4}s`,
+                            animationTimingFunction: 'ease-out',
+                            animationFillMode: 'forwards',
                             animationDelay: `${i * 0.02}s`,
                             '--tx': `${tx}px`,
                             '--ty': `${ty}px`,
@@ -917,7 +920,10 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                             left: '50%',
                             top: '50%',
                             backgroundColor: ['#ef4444', '#dc2626', '#991b1b', '#7f1d1d', '#450a0a'][i % 5],
-                            animation: `confetti-${i % 5} ${1.0 + Math.random() * 0.5}s ease-in forwards`,
+                            animationName: `confetti-${i % 5}`,
+                            animationDuration: `${1.0 + Math.random() * 0.5}s`,
+                            animationTimingFunction: 'ease-in',
+                            animationFillMode: 'forwards',
                             animationDelay: `${i * 0.015}s`,
                             '--tx': `${tx}px`,
                             '--ty': `${ty}px`,
@@ -1052,18 +1058,22 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
 
               {/* Quick bet buttons - memoized */}
               <div className="grid grid-cols-5 gap-fluid-2">
-                {useMemo(() => [
-                  { label: '0.01', value: '0.01' },
-                  { label: '0.1', value: '0.1' },
-                  { label: '0.5', value: '0.5' },
-                  { label: '1.0', value: '1' },
-                  { label: 'MAX', value: String(maxBet.toFixed(4)) },
-                ], [maxBet]).map((b, i) => (
+                {useMemo(() => {
+                  // Use Math.floor to ensure MAX value never exceeds maxBet due to rounding
+                  const maxBetValue = (Math.floor(maxBet * 10000) / 10000).toFixed(4);
+                  return [
+                    { label: '0.01', value: '0.01' },
+                    { label: '0.1', value: '0.1' },
+                    { label: '0.5', value: '0.5' },
+                    { label: '1.0', value: '1' },
+                    { label: 'MAX', value: maxBetValue },
+                  ];
+                }, [maxBet]).map((b, i) => (
                   <button
                     key={b.label}
                     onClick={() => setAmount(b.value)}
                     className={`rounded-md border py-fluid-2 px-fluid-2 text-fluid-xs font-medium transition-all duration-200 hover:scale-[1.02] ${
-                      amount === b.value || (b.label === 'MAX' && amount === String(maxBet.toFixed(4)))
+                      amount === b.value || (b.label === 'MAX' && amount === (Math.floor(maxBet * 10000) / 10000).toFixed(4))
                         ? 'border-emerald-400/50 bg-emerald-500/10 text-emerald-300'
                         : 'border-white/15 bg-white/[0.02] text-neutral-200 hover:bg-white/[0.04] hover:border-white/25'
                     }`}
@@ -1077,7 +1087,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
             {/* Flip button */}
             <div className="mt-fluid-4 lg:mt-fluid-5 w-full mx-auto" style={{ maxWidth: 'min(100%, 400px)' }}>
               {/* Debug info */}
-              {process.env.NODE_ENV === 'development' && (
+              {process.env.NODE_ENV === 'development' && hasMounted && (
                 <div className="mb-2 text-xs text-neutral-400 text-center">
                   {address ? `Connected: ${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'} | 
                   Chain: {chain?.id || 'Unknown'} | 
