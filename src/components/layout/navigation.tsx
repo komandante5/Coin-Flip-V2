@@ -5,15 +5,16 @@ import { usePathname } from 'next/navigation';
 // LOCAL TESTING ONLY: Using unified connect wallet button for local development
 // TODO: SWITCH BACK TO ConnectWalletButton WHEN GOING TO PRODUCTION
 import { UnifiedConnectWalletButton } from '@/components/unified-connect-wallet-button';
-import { Menu, X } from "lucide-react";
+import { Menu, X, Coins, Trophy, Gift, Activity } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSoundEffects } from '@/hooks/useSoundEffects';
 
 const navigationItems = [
-  { label: "Coinflip", href: "/" },
-  { label: "Leaderboard", href: "/leaderboard" },
-  { label: "Rewards", href: "/rewards" },
-  { label: "On‑chain", href: "/onchain" },
+  { label: "Coinflip", href: "/", icon: Coins },
+  { label: "Leaderboard", href: "/leaderboard", icon: Trophy },
+  { label: "Rewards", href: "/rewards", icon: Gift },
+  { label: "On‑chain", href: "/onchain", icon: Activity },
 ];
 
 function NavigationComponent() {
@@ -21,6 +22,9 @@ function NavigationComponent() {
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const pathname = usePathname();
+  
+  // Sound effects
+  const { playButtonClick } = useSoundEffects();
   
   const headerRef = useRef<HTMLElement | null>(null);
 
@@ -85,7 +89,10 @@ function NavigationComponent() {
               sizes="(max-width: 768px) 24px, 32px"
             />
             <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              onClick={() => {
+                playButtonClick();
+                setIsMobileMenuOpen(!isMobileMenuOpen);
+              }}
               className="p-2 rounded-md hover:bg-white/[0.04] transition-all duration-200"
             >
               {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
@@ -122,6 +129,7 @@ function NavigationComponent() {
                 }`}
                 href={item.href}
                 prefetch={true}
+                onClick={() => playButtonClick()}
               >
                 {item.label}
               </Link>
@@ -138,19 +146,26 @@ function NavigationComponent() {
       {isMobileMenuOpen && (
         <div className="md:hidden absolute top-full left-0 w-full bg-[#0c0f10]/95 border-b border-white/10 backdrop-blur-md">
           <nav className="px-fluid-4 py-fluid-3 space-y-2">
-            {navigationItems.map((item) => (
-              <Link
-                key={item.label}
-                className={`flex items-center px-fluid-3 py-fluid-3 rounded-lg hover:bg-white/[0.04] transition-all duration-200 text-fluid-base ${
-                  item.label === activeNavItem ? "text-white bg-white/[0.06]" : "text-neutral-300"
-                }`}
-                href={item.href}
-                prefetch={true}
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {navigationItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.label}
+                  className={`flex items-center gap-3 px-fluid-3 py-fluid-3 rounded-lg hover:bg-white/[0.04] transition-all duration-200 text-fluid-base ${
+                    item.label === activeNavItem ? "text-white bg-white/[0.06]" : "text-neutral-300"
+                  }`}
+                  href={item.href}
+                  prefetch={true}
+                  onClick={() => {
+                    playButtonClick();
+                    setIsMobileMenuOpen(false);
+                  }}
+                >
+                  <Icon size={20} className="flex-shrink-0" />
+                  {item.label}
+                </Link>
+              );
+            })}
           </nav>
         </div>
       )}
