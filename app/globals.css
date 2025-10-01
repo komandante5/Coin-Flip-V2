@@ -62,6 +62,7 @@
     
     /* Fluid component sizes - optimized for better scaling */
     --coin-size: clamp(120px, 8vw + 60px, 180px);
+    --coin-size-mobile: clamp(140px, 18vw + 70px, 200px); /* BIG and impressive coin on mobile */
     --button-height: clamp(48px, 3.5vw + 32px, 60px);
     --nav-height: clamp(60px, 4vw + 44px, 76px);
     --card-min-height: clamp(80px, 4vw + 60px, 100px);
@@ -201,6 +202,7 @@
 @media screen and (max-width: 768px) {
   :root {
     --coin-size: clamp(100px, 12vw + 40px, 140px);
+    --coin-size-mobile: clamp(150px, 20vw + 80px, 220px); /* HUGE and impressive coin on mobile */
     --button-height: clamp(44px, 4vw + 28px, 52px);
     --nav-height: clamp(56px, 5vw + 36px, 68px);
     --card-min-height: clamp(70px, 6vw + 40px, 85px);
@@ -257,6 +259,7 @@
 @media screen and (max-width: 480px) {
   :root {
     --coin-size: clamp(80px, 15vw + 20px, 120px);
+    --coin-size-mobile: clamp(130px, 22vw + 60px, 180px); /* Still impressive on small screens */
     --button-height: clamp(40px, 5vw + 24px, 48px);
     --nav-height: clamp(52px, 6vw + 32px, 64px);
     --card-min-height: clamp(60px, 8vw + 30px, 75px);

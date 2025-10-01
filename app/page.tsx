@@ -858,19 +858,19 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         )}
       </div>
       
-      <main className="relative z-10 mx-auto w-full px-fluid-4 lg:px-fluid-6 xl:px-fluid-8 py-fluid-4 lg:py-fluid-6 grid grid-cols-12 gap-fluid-4 lg:gap-fluid-6 flex-1" style={{ maxWidth: 'min(98vw, var(--container-3xl))' }}>
+      <main className="relative z-10 mx-auto w-full px-fluid-3 md:px-fluid-4 lg:px-fluid-6 xl:px-fluid-8 py-fluid-2 md:py-fluid-3 lg:py-fluid-4 grid grid-cols-12 gap-fluid-4 lg:gap-fluid-6 flex-1" style={{ maxWidth: 'min(98vw, var(--container-3xl))' }}>
         {/* Main game panel - appears first on mobile, second on desktop */}
         <section className="col-span-12 md:col-span-8 lg:col-span-8 xl:col-span-8 order-1 md:order-2">
           <div className="flex flex-col items-center">
-            {/* Floating coin visual - responsive sizing */}
-            <div className="relative w-full flex items-center justify-center" style={{ height: 'clamp(180px, 20vw + 80px, 240px)' }}>
+            {/* Floating coin visual - BIG on mobile, compact on desktop */}
+            <div className="relative w-full flex items-center justify-center" style={{ height: 'clamp(170px, 22vw + 100px, 200px)' }}>
               
               {/* Coin image in center - 3D container for both sides */}
               <div 
                 className={`relative z-10 ${isFlipping && !isRevealing ? 'animate-coin-flip-fast' : ''} ${isRevealing ? revealAnimation : ''}`} 
                 style={{ 
-                  width: 'var(--coin-size)', 
-                  height: 'var(--coin-size)',
+                  width: 'var(--coin-size-mobile)', 
+                  height: 'var(--coin-size-mobile)',
                   transformStyle: 'preserve-3d',
                   perspective: '1000px',
                   transform: (!isFlipping && !isRevealing) ? `rotateY(${currentRotation}deg)` : undefined,
@@ -893,7 +893,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                     height={288}
                     className="w-full h-full object-cover"
                     priority
-                    sizes="(max-width: 768px) 120px, (max-width: 1200px) 150px, 180px"
+                    sizes="(max-width: 768px) 180px, (max-width: 1200px) 150px, 180px"
                   />
                 </div>
                 
@@ -913,7 +913,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                     height={288}
                     className="w-full h-full object-cover"
                     priority
-                    sizes="(max-width: 768px) 120px, (max-width: 1200px) 150px, 180px"
+                    sizes="(max-width: 768px) 180px, (max-width: 1200px) 150px, 180px"
                   />
                 </div>
               </div>
@@ -1056,22 +1056,21 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
               )}
             </div>
 
-            {/* Choice cards */}
-            <div className="mt-fluid-4 grid w-full grid-cols-2 gap-fluid-3 max-w-2xl mx-auto">
+            {/* Choice cards - MORE COMPACT ON MOBILE */}
+            <div className="mt-fluid-2 md:mt-fluid-3 grid w-full grid-cols-2 gap-fluid-2 md:gap-fluid-3 max-w-2xl mx-auto">
               {/* Heads card */}
               <div
-                className={`rounded-xl border p-fluid-4 backdrop-blur-sm transition-all hover:translate-y-[-1px] duration-300 select-none cursor-pointer ${
+                className={`rounded-lg md:rounded-xl border p-fluid-2 md:p-fluid-3 backdrop-blur-sm transition-all hover:translate-y-[-1px] duration-300 select-none cursor-pointer ${
                   selectedForUI === 'Heads'
                     ? 'border-emerald-400/40 bg-emerald-500/8 ring-1 ring-emerald-400/30'
                     : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.04]'
                 }`}
-                style={{ minHeight: 'var(--card-min-height)' }}
                 onClick={() => handleCoinSelection('Heads')}
               >
                 <div className="text-center">
-                  <SectionTitle>HEADS</SectionTitle>
-                  <div className="mt-fluid-2 flex items-center justify-center">
-                    <div className="rounded-full overflow-hidden" style={{ width: 'clamp(40px, 4vw + 24px, 56px)', height: 'clamp(40px, 4vw + 24px, 56px)' }}>
+                  <div className="text-fluid-xs md:text-fluid-sm font-bold tracking-wider">HEADS</div>
+                  <div className="mt-1 md:mt-1.5 flex items-center justify-center">
+                    <div className="rounded-full overflow-hidden" style={{ width: 'clamp(32px, 3vw + 20px, 56px)', height: 'clamp(32px, 3vw + 20px, 56px)' }}>
                       <Image
                         src="/Heads.png"
                         alt="Heads"
@@ -1079,11 +1078,11 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                         height={96}
                         className="w-full h-full object-contain"
                         priority
-                        sizes="(max-width: 768px) 40px, (max-width: 1200px) 48px, 56px"
+                        sizes="(max-width: 768px) 32px, (max-width: 1200px) 48px, 56px"
                       />
                     </div>
                   </div>
-                  <div className="mt-fluid-2">
+                  <div className="mt-1 md:mt-1.5">
                     <Pill active={selectedForUI === 'Heads'}>2.00x</Pill>
                   </div>
                 </div>
@@ -1091,18 +1090,17 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
 
               {/* Tails card */}
               <div
-                className={`rounded-xl border p-fluid-4 backdrop-blur-sm transition-all hover:translate-y-[-1px] duration-300 select-none cursor-pointer ${
+                className={`rounded-lg md:rounded-xl border p-fluid-2 md:p-fluid-3 backdrop-blur-sm transition-all hover:translate-y-[-1px] duration-300 select-none cursor-pointer ${
                   selectedForUI === 'Tails'
                     ? 'border-emerald-400/40 bg-emerald-500/8 ring-1 ring-emerald-400/30'
                     : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.04]'
                 }`}
-                style={{ minHeight: 'var(--card-min-height)' }}
                 onClick={() => handleCoinSelection('Tails')}
               >
                 <div className="text-center">
-                  <SectionTitle>TAILS</SectionTitle>
-                  <div className="mt-fluid-2 flex items-center justify-center">
-                    <div className="rounded-full overflow-hidden" style={{ width: 'clamp(40px, 4vw + 24px, 56px)', height: 'clamp(40px, 4vw + 24px, 56px)' }}>
+                  <div className="text-fluid-xs md:text-fluid-sm font-bold tracking-wider">TAILS</div>
+                  <div className="mt-1 md:mt-1.5 flex items-center justify-center">
+                    <div className="rounded-full overflow-hidden" style={{ width: 'clamp(32px, 3vw + 20px, 56px)', height: 'clamp(32px, 3vw + 20px, 56px)' }}>
                       <Image
                         src="/Tails.png"
                         alt="Tails"
@@ -1110,33 +1108,33 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                         height={96}
                         className="w-full h-full object-contain"
                         priority
-                        sizes="(max-width: 768px) 40px, (max-width: 1200px) 48px, 56px"
+                        sizes="(max-width: 768px) 32px, (max-width: 1200px) 48px, 56px"
                       />
                     </div>
                   </div>
-                  <div className="mt-fluid-2">
+                  <div className="mt-1 md:mt-1.5">
                     <Pill active={selectedForUI === 'Tails'}>2.00x</Pill>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Amount controls */}
-            <div className="mt-fluid-5 lg:mt-fluid-6 w-full mx-auto" style={{ maxWidth: 'min(100%, 500px)' }}>
-              {/* Custom amount input - more prominent */}
-              <div className="mb-3">
-                <label className="block text-fluid-sm font-medium text-neutral-300 mb-2 text-center">
+            {/* Amount controls - SIMPLIFIED FOR MOBILE */}
+            <div className="mt-fluid-3 md:mt-fluid-4 lg:mt-fluid-4 w-full mx-auto" style={{ maxWidth: 'min(100%, 500px)' }}>
+              {/* Custom amount input - more compact on mobile */}
+              <div className="mb-2">
+                <label className="block text-fluid-xs md:text-fluid-sm font-medium text-neutral-300 mb-1 md:mb-2 text-center">
                   Bet Amount (ETH)
                 </label>
                 <div className="relative">
-                  <div className="w-full rounded-lg border border-white/20 bg-white/[0.03] px-fluid-3 py-fluid-3 text-white focus-within:border-emerald-400/50 focus-within:bg-white/[0.05] transition-all duration-200">
+                  <div className="w-full rounded-lg border border-white/20 bg-white/[0.03] px-fluid-2 md:px-fluid-3 py-fluid-2 md:py-fluid-3 text-white focus-within:border-emerald-400/50 focus-within:bg-white/[0.05] transition-all duration-200">
                     <div className="flex items-center justify-center gap-2 max-w-fit mx-auto">
                       {/* Ethereum Icon */}
-                      <svg className="w-5 h-5 text-neutral-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                      <svg className="w-4 h-4 md:w-5 md:h-5 text-neutral-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/>
                       </svg>
                       <input
-                        className="bg-transparent outline-none placeholder:text-neutral-500 text-fluid-base font-medium no-spinners min-w-0"
+                        className="bg-transparent outline-none placeholder:text-neutral-500 text-fluid-sm md:text-fluid-base font-medium no-spinners min-w-0"
                         placeholder="0.01"
                         type="number"
                         step="0.0001"
@@ -1148,26 +1146,15 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                       />
                     </div>
                   </div>
-                  <div className="mt-1 text-center text-fluid-xs text-neutral-400">
-                    Min: {minBet.toFixed(4)} ETH • Max: {maxBet.toFixed(4)} ETH
+                  {/* Min/Max info - smaller on mobile */}
+                  <div className="mt-1 text-center text-[10px] md:text-fluid-xs text-neutral-400">
+                    Min: {minBet.toFixed(4)} • Max: {maxBet.toFixed(4)}
                   </div>
-                  {hasMounted && contractBalance && (
-                    <div className="mt-2 text-center">
-                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                        <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="text-fluid-xs font-medium text-emerald-300">
-                          Contract Bankroll: {animatedBalance.toFixed(4)} ETH
-                        </span>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 
-              {/* Quick bet buttons - memoized */}
-              <div className="grid grid-cols-5 gap-fluid-2">
+              {/* Quick bet buttons - NOW VISIBLE ON MOBILE TOO */}
+              <div className="grid grid-cols-5 gap-fluid-2 mb-2">
                 {useMemo(() => {
                   // Use Math.floor to ensure MAX value never exceeds maxBet due to rounding
                   const maxBetValue = (Math.floor(maxBet * 10000) / 10000).toFixed(4);
@@ -1185,7 +1172,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                       playButtonClick();
                       setAmount(b.value);
                     }}
-                    className={`rounded-md border py-fluid-2 px-fluid-2 text-fluid-xs font-medium transition-all duration-200 hover:scale-[1.02] ${
+                    className={`rounded-md border py-1.5 md:py-fluid-2 px-1 md:px-fluid-2 text-[10px] md:text-fluid-xs font-medium transition-all duration-200 hover:scale-[1.02] ${
                       amount === b.value || (b.label === 'MAX' && amount === (Math.floor(maxBet * 10000) / 10000).toFixed(4))
                         ? 'border-emerald-400/50 bg-emerald-500/10 text-emerald-300'
                         : 'border-white/15 bg-white/[0.02] text-neutral-200 hover:bg-white/[0.04] hover:border-white/25'
@@ -1195,13 +1182,27 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                   </button>
                 ))}
               </div>
+              
+              {/* Contract Bankroll - HIDDEN ON MOBILE */}
+              {hasMounted && contractBalance && (
+                <div className="hidden md:block text-center mb-2">
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                    <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-fluid-xs font-medium text-emerald-300">
+                      Contract Bankroll: {animatedBalance.toFixed(4)} ETH
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Flip button */}
-            <div className="mt-fluid-4 lg:mt-fluid-5 w-full mx-auto" style={{ maxWidth: 'min(100%, 400px)' }}>
-              {/* Debug info */}
+            {/* Flip button - CLOSER TO BET AMOUNT ON MOBILE */}
+            <div className="mt-fluid-2 md:mt-fluid-3 lg:mt-fluid-3 w-full mx-auto" style={{ maxWidth: 'min(100%, 400px)' }}>
+              {/* Debug info - HIDDEN ON MOBILE */}
               {process.env.NODE_ENV === 'development' && hasMounted && (
-                <div className="mb-2 text-xs text-neutral-400 text-center">
+                <div className="hidden md:block mb-2 text-xs text-neutral-400 text-center">
                   {address ? `Connected: ${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'} | 
                   Chain: {chain?.id || 'Unknown'} | 
                   Type: {walletType}
@@ -1211,32 +1212,128 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
               <button 
                 onClick={flip}
                 disabled={!hasMounted || !address || !isConnected || !amount || Number(amount) < minBet || Number(amount) > maxBet || isFlipping}
-                className="w-full rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 hover:from-emerald-400 hover:via-teal-300 hover:to-emerald-400 transition-all duration-300 text-black font-bold text-fluid-lg lg:text-fluid-xl flex items-center justify-center gap-fluid-3 shadow-[0_0_60px_-15px_rgba(16,185,129,0.8)] hover:shadow-[0_0_80px_-10px_rgba(16,185,129,1)] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 relative overflow-hidden group"
-                style={{ height: 'var(--button-height)' }}
+                className="w-full rounded-xl md:rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 hover:from-emerald-400 hover:via-teal-300 hover:to-emerald-400 transition-all duration-300 text-black font-bold text-fluid-base md:text-fluid-lg lg:text-fluid-xl flex items-center justify-center gap-2 md:gap-fluid-3 shadow-[0_0_60px_-15px_rgba(16,185,129,0.8)] hover:shadow-[0_0_80px_-10px_rgba(16,185,129,1)] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 relative overflow-hidden group"
+                style={{ height: 'clamp(44px, 3vw + 30px, 60px)' }}
               >
                 {/* Animated background shimmer */}
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                 
                 {isFlipping ? (
                   <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-4 h-4 md:w-5 md:h-5 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
                     <span>FLIPPING...</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
                     <span>FLIP</span>
-                    <div className="w-5 h-5 rounded-full bg-black/20 flex items-center justify-center">
-                      <ChevronRight size={14} />
+                    <div className="w-4 h-4 md:w-5 md:h-5 rounded-full bg-black/20 flex items-center justify-center">
+                      <ChevronRight className="w-3 h-3 md:w-4 md:h-4" />
                     </div>
                   </div>
                 )}
               </button>
+              
+            </div>
+            
+            {/* Recent bets on mobile - pushed much further down */}
+            <div className="md:hidden mt-fluid-12 w-full">
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] flex flex-col" style={{ height: 'clamp(300px, 50vh, 500px)' }}>
+                <div className="flex gap-fluid-1 px-fluid-3 pt-fluid-3 pb-fluid-2 border-b border-white/5">
+                  <button
+                    onClick={() => handleTabChange('all')}
+                    className={`text-fluid-xs px-fluid-3 py-fluid-2 transition-all duration-200 relative ${
+                      activeTab === 'all' 
+                        ? 'text-white' 
+                        : 'text-neutral-400 hover:text-neutral-200'
+                    }`}
+                  >
+                    All Bets
+                    {activeTab === 'all' && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-400 rounded-full"></div>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleTabChange('mine')}
+                    className={`text-fluid-xs px-fluid-3 py-fluid-2 transition-all duration-200 relative ${
+                      activeTab === 'mine' 
+                        ? 'text-white' 
+                        : 'text-neutral-400 hover:text-neutral-200'
+                    }`}
+                  >
+                    My Bets
+                    {activeTab === 'mine' && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-400 rounded-full"></div>
+                    )}
+                  </button>
+                </div>
+                <div className="flex-1 divide-y divide-white/5 overflow-y-auto custom-scrollbar">
+                  {displayedFlips.length === 0 ? (
+                    <div className="flex items-center justify-center h-full px-fluid-3 py-fluid-4 text-center text-neutral-500 text-fluid-xs">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
+                          <span className="text-fluid-sm">📊</span>
+                        </div>
+                        <div>{activeTab === 'mine' && !address ? 'Connect wallet to see your bets' : 'No recent flips'}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    displayedFlips.map((flip, i) => (
+                      <div 
+                        key={i} 
+                        className={`px-fluid-3 py-fluid-3 ${newBetIndices.has(i) ? 'animate-bet-slide-in' : ''}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="text-fluid-xs text-neutral-400 truncate max-w-[60%]">{formatAddress(flip.player)}</div>
+                          <div className="text-fluid-xs text-neutral-500 whitespace-nowrap">{formatTimeAgo(flip.timestamp)}</div>
+                        </div>
+                        <div className="mt-fluid-2 flex justify-between items-center">
+                          <div className="flex items-center gap-fluid-2 flex-1">
+                            <Image
+                              src={flip.choice === 0 ? '/Heads.png' : '/Tails.png'}
+                              alt={flip.choice === 0 ? 'Heads' : 'Tails'}
+                              width={28}
+                              height={28}
+                              className="rounded-full object-contain shrink-0"
+                              style={{ width: 'clamp(24px, 2.5vw + 16px, 32px)', height: 'clamp(24px, 2.5vw + 16px, 32px)' }}
+                              loading="lazy"
+                              sizes="(max-width: 768px) 24px, (max-width: 1200px) 28px, 32px"
+                            />
+                            <div className="text-fluid-xs">{flip.choice === 0 ? 'Heads' : 'Tails'}</div>
+                          </div>
+                          <div className="text-center flex-1">
+                            <div className={`${flip.didWin === true ? 'text-emerald-300' : flip.didWin === false ? 'text-rose-300' : 'text-yellow-300'} text-fluid-xs`}> 
+                              {flip.didWin === undefined ? 'Pending' : flip.didWin ? 'Win' : 'Loss'}
+                            </div>
+                          </div>
+                          <div className="text-right flex-1">
+                            <div className="flex items-center justify-end gap-1 text-fluid-xs whitespace-nowrap">
+                              <svg className="w-2.5 h-2.5 text-emerald-300 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/>
+                              </svg>
+                              {Number(formatEther(flip.betAmount)).toFixed(4)}
+                            </div>
+                            {flip.payout && flip.didWin && (
+                              <div className="flex items-center justify-end gap-1 text-fluid-xs text-emerald-300/80 whitespace-nowrap">
+                                <span>+</span>
+                                <svg className="w-2.5 h-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/>
+                                </svg>
+                                <span>{Number(formatEther(flip.payout)).toFixed(4)}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Left rail: recent bets - appears second on mobile, first on desktop */}
-        <aside className="col-span-12 md:col-span-4 lg:col-span-4 xl:col-span-4 order-2 md:order-1">
+        {/* Left rail: recent bets - DESKTOP ONLY */}
+        <aside className="hidden md:block col-span-12 md:col-span-4 lg:col-span-4 xl:col-span-4 order-2 md:order-1">
           <div className="rounded-xl border border-white/10 bg-white/[0.02] flex flex-col" style={{ height: 'clamp(400px, 75vh, 800px)' }}>
             <div className="flex gap-fluid-1 px-fluid-3 pt-fluid-3 pb-fluid-2 border-b border-white/5">
               <button
