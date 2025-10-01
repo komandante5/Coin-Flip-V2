@@ -10,6 +10,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      toastOptions={{
+        style: {
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)', // Safari support
+        },
+      }}
       style={
         {
           "--normal-bg": "var(--popover)",
