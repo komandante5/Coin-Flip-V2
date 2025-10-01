@@ -13,6 +13,8 @@ import { Pill } from '@/components/ui/pill';
 // TODO: DELETE THIS WHEN GOING TO PRODUCTION - ONLY FOR LOCAL TESTING
 import { WalletSelector } from '@/components/wallet-selector';
 import { useWalletType } from '@/components/hybrid-wallet-provider';
+import { useSoundEffects } from '@/hooks/useSoundEffects';
+import { useWalletAnimation } from '@/hooks/useWalletAnimation';
 
 import coinFlipJson from '../src/abi/CoinFlip.json';
 import mockVrfJson from '../src/abi/MockVRF.json';
@@ -151,6 +153,12 @@ function CoinflipPage() {
   // LOCAL TESTING ONLY: Wallet type selection for local development
   // TODO: DELETE THIS WHEN GOING TO PRODUCTION - ONLY FOR LOCAL TESTING
   const { walletType, setWalletType } = useWalletType();
+  
+  // Sound effects hook
+  const { playWin, playLose, playButtonClick, playTabSwitch, playError, playFlipStart } = useSoundEffects();
+  
+  // Wallet animation hook
+  const { triggerWinAnimation, triggerBalanceRefetch } = useWalletAnimation();
   
   // Avoid hydration mismatches by deferring client-only state
   const [hasMounted, setHasMounted] = useState(false);
@@ -432,6 +440,9 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
     // Only animate if we're actually changing sides
     if (selectedForUI === side) return;
     
+    // Play button click sound
+    playButtonClick();
+    
     // Immediately highlight the button for UI feedback
     setSelectedForUI(side);
     setSelected(side);
@@ -439,7 +450,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
     // Animate rotation change smoothly
     // The CSS transition on the coin container will handle the smooth rotation
     setCurrentRotation(side === 'Heads' ? 0 : 180);
-  }, [selectedForUI]);
+  }, [selectedForUI, playButtonClick]);
 
   const flip = useCallback(async () => {
     if (!address) {
@@ -487,6 +498,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
     console.log('======================');
     
     // Phase 1: Start fast spinning immediately
+    playFlipStart(); // Play flip start sound
     setIsFlipping(true);
     setIsRevealing(false);
     setFlipResult(null);
@@ -499,10 +511,17 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
       duration: Infinity,
       className: 'text-xl font-bold',
       style: {
-        background: 'rgba(16, 185, 129, 0.1)',
-        border: '2px solid rgba(16, 185, 129, 0.3)',
+        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.15) 100%)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: '2px solid transparent',
+        backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #10b981, #06b6d4)',
+        backgroundOrigin: 'border-box',
+        backgroundClip: 'padding-box, border-box',
+        color: '#ffffff',
         padding: '20px 24px',
         fontSize: '18px',
+        boxShadow: '0 8px 32px rgba(16, 185, 129, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
       },
     });
     
@@ -527,10 +546,17 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         duration: Infinity,
         className: 'text-xl font-bold',
         style: {
-          background: 'rgba(16, 185, 129, 0.15)',
-          border: '2px solid rgba(16, 185, 129, 0.4)',
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.15) 100%)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '2px solid transparent',
+          backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #10b981, #06b6d4)',
+          backgroundOrigin: 'border-box',
+          backgroundClip: 'padding-box, border-box',
+          color: '#ffffff',
           padding: '20px 24px',
           fontSize: '18px',
+          boxShadow: '0 8px 32px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
         },
       });
       const receiptCommit = await publicClient!.waitForTransactionReceipt({ hash: txHash });
@@ -553,6 +579,9 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
       const currentTimestamp = Math.floor(Date.now() / 1000);
       setTimestampInCache(requestId.toString(), currentTimestamp);
       console.log('Cached timestamp for new bet:', requestId.toString(), new Date(currentTimestamp * 1000).toLocaleString());
+      
+      // Trigger wallet balance refetch since player made a bet
+      triggerBalanceRefetch();
       
       // Immediately fetch bet history to show the pending bet
       console.log('Fetching bet history to show pending bet...');
@@ -629,27 +658,47 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         setTimeout(() => {
           setFlipResult(result);
           
-          // Show result toast with enhanced styling
+          // Show result toast with enhanced styling and play sound
           if (didWin) {
+            playWin(); // Play win sound
+            // Trigger wallet animation with win amount
+            triggerWinAnimation(Number(formatEther(payout)).toFixed(4));
             toast.success(`🎉 You won ${Number(formatEther(payout)).toFixed(4)} ETH!`, {
               duration: 5000,
               className: 'text-2xl font-black',
               style: {
-                background: 'rgba(16, 185, 129, 0.2)',
-                border: '3px solid rgba(16, 185, 129, 0.6)',
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.15) 100%)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                border: '3px solid transparent',
+                backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.9), rgba(12, 15, 16, 0.9)), linear-gradient(135deg, #10b981, #06b6d4, #8b5cf6)',
+                backgroundOrigin: 'border-box',
+                backgroundClip: 'padding-box, border-box',
+                color: '#10b981',
                 padding: '24px 32px',
                 fontSize: '20px',
+                fontWeight: '900',
+                boxShadow: '0 12px 48px rgba(16, 185, 129, 0.4), inset 0 1px 0 rgba(16, 185, 129, 0.2)',
+                textShadow: '0 0 20px rgba(16, 185, 129, 0.5)',
               },
             });
           } else {
+            playLose(); // Play lose sound
             toast.error(`Better luck next time!`, {
               duration: 3000,
               className: 'text-xl font-bold',
               style: {
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '2px solid rgba(239, 68, 68, 0.4)',
+                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.15) 100%)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                border: '2px solid transparent',
+                backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.9), rgba(12, 15, 16, 0.9)), linear-gradient(135deg, #ef4444, #dc2626)',
+                backgroundOrigin: 'border-box',
+                backgroundClip: 'padding-box, border-box',
+                color: '#fca5a5',
                 padding: '20px 24px',
                 fontSize: '18px',
+                boxShadow: '0 8px 32px rgba(239, 68, 68, 0.3), inset 0 1px 0 rgba(239, 68, 68, 0.15)',
               },
             });
           }
@@ -683,6 +732,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
           console.log('Reveal animation completed, refreshing stats and bet history...');
           memoizedRefetchStats();
           refetchBalance(); // Update contract balance
+          triggerBalanceRefetch(); // Update player's wallet balance in nav
           fetchRecentFlips(); // Refresh bet history after reveal
         }, 3000); // Match the reveal animation duration
       } else {
@@ -701,6 +751,9 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
       // Dismiss loading toast
       toast.dismiss('flip-transaction');
       
+      // Play error sound
+      playError();
+      
       // Show error state for 3 seconds before resetting
       setTimeout(() => {
         setIsFlipping(false);
@@ -716,14 +769,21 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         description: 'Make sure your wallet is connected and you have enough ETH',
         className: 'text-xl font-bold',
         style: {
-          background: 'rgba(239, 68, 68, 0.15)',
-          border: '2px solid rgba(239, 68, 68, 0.5)',
+          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.15) 100%)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '2px solid transparent',
+          backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.9), rgba(12, 15, 16, 0.9)), linear-gradient(135deg, #ef4444, #dc2626)',
+          backgroundOrigin: 'border-box',
+          backgroundClip: 'padding-box, border-box',
+          color: '#fca5a5',
           padding: '20px 24px',
           fontSize: '18px',
+          boxShadow: '0 8px 32px rgba(239, 68, 68, 0.3), inset 0 1px 0 rgba(239, 68, 68, 0.15)',
         },
       });
     }
-  }, [address, selectedForUI, amount, writeContractAsync, publicClient, memoizedRefetchStats, fetchRecentFlips, isConnected, chain, switchChain, refetchBalance, walletType]);
+  }, [address, selectedForUI, amount, writeContractAsync, publicClient, memoizedRefetchStats, fetchRecentFlips, isConnected, chain, switchChain, refetchBalance, walletType, playWin, playLose]);
 
   // Memoized utility functions
   const formatAddress = useCallback((addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`, []);
@@ -752,9 +812,10 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
   // Optimize tab change handling
   const handleTabChange = useCallback((tab: 'all' | 'mine') => {
     if (activeTab !== tab) {
+      playTabSwitch(); // Play tab switch sound
       setActiveTab(tab);
     }
-  }, [activeTab]);
+  }, [activeTab, playTabSwitch]);
 
   return (
     <PageLayout>
@@ -860,32 +921,28 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
               {/* Win celebration effect */}
               {showWinCelebration && (
                 <>
-                  {/* Confetti particles */}
-                  <div className="absolute inset-0 pointer-events-none z-30">
-                    {[...Array(50)].map((_, i) => {
-                      const angle = (i / 50) * Math.PI * 2;
-                      const velocity = 100 + Math.random() * 150;
-                      const tx = Math.cos(angle) * velocity;
-                      const ty = Math.sin(angle) * velocity;
-                      return (
-                        <div
-                          key={i}
-                          className="absolute w-2 h-2 rounded-full"
-                          style={{
-                            left: '50%',
-                            top: '50%',
-                            backgroundColor: ['#10b981', '#14b8a6', '#06b6d4', '#f59e0b', '#f97316'][i % 5],
-                            animationName: `confetti-${i % 5}`,
-                            animationDuration: `${0.8 + Math.random() * 0.4}s`,
-                            animationTimingFunction: 'ease-out',
-                            animationFillMode: 'forwards',
-                            animationDelay: `${i * 0.02}s`,
-                            '--tx': `${tx}px`,
-                            '--ty': `${ty}px`,
-                          } as React.CSSProperties}
-                        />
-                      );
-                    })}
+                  {/* Expanding rings */}
+                  <div className="absolute inset-0 pointer-events-none z-20">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-2 border-emerald-400/40 rounded-full animate-ping" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border-2 border-teal-400/30 rounded-full animate-ping" style={{ animationDelay: '0.2s' }} />
+                  </div>
+                  {/* Blockchain grid pattern */}
+                  <div className="absolute inset-0 pointer-events-none z-25 opacity-30">
+                    {[...Array(8)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="absolute"
+                        style={{
+                          left: '50%',
+                          top: '50%',
+                          width: '24px',
+                          height: '24px',
+                          border: '1px solid #10b981',
+                          transform: `translate(-50%, -50%) rotate(${i * 45}deg) translateY(-60px)`,
+                          animation: `hexagon-pulse ${0.8}s ease-out ${i * 0.1}s forwards`,
+                        }}
+                      />
+                    ))}
                   </div>
                   {/* Glow effect */}
                   <div className="absolute inset-0 pointer-events-none z-20">
@@ -893,10 +950,30 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                   </div>
                   {/* Win text */}
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
-                    <div className="flex items-center gap-2 text-4xl font-black text-emerald-300 animate-bounce">
-                      <Sparkles className="w-8 h-8" />
-                      <span>WIN!</span>
-                      <Sparkles className="w-8 h-8" />
+                    <div className="flex items-center gap-3 animate-bounce">
+                      <Sparkles className="w-10 h-10 text-emerald-400 animate-spin" style={{ animationDuration: '2s' }} />
+                      <div className="relative">
+                        <div className="text-6xl font-black uppercase tracking-wider"
+                          style={{
+                            background: 'linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #8b5cf6 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            backgroundClip: 'text',
+                            filter: 'drop-shadow(0 0 20px rgba(16, 185, 129, 0.8)) drop-shadow(0 0 40px rgba(6, 182, 212, 0.6))',
+                            textShadow: '0 0 30px rgba(16, 185, 129, 0.5)',
+                          }}>
+                          WIN
+                        </div>
+                        {/* Outline effect */}
+                        <div className="absolute inset-0 text-6xl font-black uppercase tracking-wider -z-10"
+                          style={{
+                            WebkitTextStroke: '2px rgba(16, 185, 129, 0.5)',
+                            color: 'transparent',
+                          }}>
+                          WIN
+                        </div>
+                      </div>
+                      <Sparkles className="w-10 h-10 text-cyan-400 animate-spin" style={{ animationDuration: '2s', animationDirection: 'reverse' }} />
                     </div>
                   </div>
                 </>
@@ -905,41 +982,74 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
               {/* Lose celebration effect */}
               {showLoseCelebration && (
                 <>
-                  {/* Falling particles */}
-                  <div className="absolute inset-0 pointer-events-none z-30">
-                    {[...Array(40)].map((_, i) => {
-                      const angle = (i / 40) * Math.PI * 2;
-                      const velocity = 80 + Math.random() * 100;
-                      const tx = Math.cos(angle) * velocity;
-                      const ty = Math.sin(angle) * velocity + 50; // Bias downward
-                      return (
-                        <div
-                          key={i}
-                          className="absolute w-2 h-2 rounded-full"
-                          style={{
-                            left: '50%',
-                            top: '50%',
-                            backgroundColor: ['#ef4444', '#dc2626', '#991b1b', '#7f1d1d', '#450a0a'][i % 5],
-                            animationName: `confetti-${i % 5}`,
-                            animationDuration: `${1.0 + Math.random() * 0.5}s`,
-                            animationTimingFunction: 'ease-in',
-                            animationFillMode: 'forwards',
-                            animationDelay: `${i * 0.015}s`,
-                            '--tx': `${tx}px`,
-                            '--ty': `${ty}px`,
-                          } as React.CSSProperties}
-                        />
-                      );
-                    })}
+                  {/* Pulsing red rings */}
+                  <div className="absolute inset-0 pointer-events-none z-20">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-2 border-red-400/40 rounded-full animate-ping" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border-2 border-red-500/30 rounded-full animate-ping" style={{ animationDelay: '0.15s' }} />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 border-2 border-red-600/20 rounded-full animate-ping" style={{ animationDelay: '0.3s' }} />
+                  </div>
+                  {/* Shrinking hex grid */}
+                  <div className="absolute inset-0 pointer-events-none z-25 opacity-30">
+                    {[...Array(8)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="absolute"
+                        style={{
+                          left: '50%',
+                          top: '50%',
+                          width: '28px',
+                          height: '28px',
+                          border: '2px solid #ef4444',
+                          transform: `translate(-50%, -50%) rotate(${i * 45}deg) translateY(-50px)`,
+                          animation: `hexagon-implode ${0.7}s ease-in ${i * 0.08}s forwards`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {/* Rotating X marks */}
+                  <div className="absolute inset-0 pointer-events-none z-25 opacity-40">
+                    {[...Array(4)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="absolute text-4xl font-black text-red-500"
+                        style={{
+                          left: '50%',
+                          top: '50%',
+                          transform: `translate(-50%, -50%) rotate(${i * 90}deg) translateY(-80px)`,
+                          animation: `fade-rotate ${1.2}s ease-out ${i * 0.1}s forwards`,
+                        }}
+                      >
+                        ✕
+                      </div>
+                    ))}
                   </div>
                   {/* Dark glow effect */}
                   <div className="absolute inset-0 pointer-events-none z-20">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] h-[200%] bg-red-500/15 rounded-full blur-3xl animate-pulse" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] h-[200%] bg-red-500/20 rounded-full blur-3xl animate-pulse" />
                   </div>
                   {/* Lose text */}
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
-                    <div className="text-3xl font-black text-red-400 animate-fade-in-out">
-                      <span>LOSE</span>
+                    <div className="animate-fade-in-out">
+                      <div className="relative">
+                        <div className="text-5xl font-black uppercase tracking-widest"
+                          style={{
+                            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #991b1b 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            backgroundClip: 'text',
+                            filter: 'drop-shadow(0 0 20px rgba(239, 68, 68, 0.8)) drop-shadow(0 0 40px rgba(220, 38, 38, 0.6))',
+                          }}>
+                          LOSE
+                        </div>
+                        {/* Outline effect */}
+                        <div className="absolute inset-0 text-5xl font-black uppercase tracking-widest -z-10"
+                          style={{
+                            WebkitTextStroke: '2px rgba(239, 68, 68, 0.5)',
+                            color: 'transparent',
+                          }}>
+                          LOSE
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </>
@@ -1071,7 +1181,10 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                 }, [maxBet]).map((b, i) => (
                   <button
                     key={b.label}
-                    onClick={() => setAmount(b.value)}
+                    onClick={() => {
+                      playButtonClick();
+                      setAmount(b.value);
+                    }}
                     className={`rounded-md border py-fluid-2 px-fluid-2 text-fluid-xs font-medium transition-all duration-200 hover:scale-[1.02] ${
                       amount === b.value || (b.label === 'MAX' && amount === (Math.floor(maxBet * 10000) / 10000).toFixed(4))
                         ? 'border-emerald-400/50 bg-emerald-500/10 text-emerald-300'
@@ -1299,31 +1412,80 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
             transform: translateX(0) scale(1);
           }
         }
-        @keyframes confetti-0 {
-          0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
-          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) rotate(360deg); opacity: 0; }
+        /* Crypto symbol float animations - rising upward */
+        @keyframes crypto-float-0 {
+          0% { transform: translate(-50%, -50%) scale(0.3) rotate(0deg); opacity: 0; }
+          20% { opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1.2) rotate(180deg); opacity: 0; }
         }
-        @keyframes confetti-1 {
-          0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
-          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) rotate(540deg); opacity: 0; }
+        @keyframes crypto-float-1 {
+          0% { transform: translate(-50%, -50%) scale(0.3) rotate(0deg); opacity: 0; }
+          20% { opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1.3) rotate(240deg); opacity: 0; }
         }
-        @keyframes confetti-2 {
-          0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
-          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) rotate(720deg); opacity: 0; }
+        @keyframes crypto-float-2 {
+          0% { transform: translate(-50%, -50%) scale(0.3) rotate(0deg); opacity: 0; }
+          20% { opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1.1) rotate(300deg); opacity: 0; }
         }
-        @keyframes confetti-3 {
-          0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
-          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) rotate(900deg); opacity: 0; }
+        @keyframes crypto-float-3 {
+          0% { transform: translate(-50%, -50%) scale(0.3) rotate(0deg); opacity: 0; }
+          20% { opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1.4) rotate(360deg); opacity: 0; }
         }
-        @keyframes confetti-4 {
-          0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
-          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) rotate(1080deg); opacity: 0; }
+        @keyframes crypto-float-4 {
+          0% { transform: translate(-50%, -50%) scale(0.3) rotate(0deg); opacity: 0; }
+          20% { opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1.2) rotate(420deg); opacity: 0; }
+        }
+        
+        /* Glitch scatter animations - explosive outward with fade */
+        @keyframes glitch-scatter-0 {
+          0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.5); opacity: 0; }
+        }
+        @keyframes glitch-scatter-1 {
+          0% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.6) rotate(90deg); opacity: 0; }
+        }
+        @keyframes glitch-scatter-2 {
+          0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+          50% { opacity: 0.3; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.4); opacity: 0; }
+        }
+        @keyframes glitch-scatter-3 {
+          0% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.7) rotate(-90deg); opacity: 0; }
+        }
+        @keyframes glitch-scatter-4 {
+          0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.3); opacity: 0; }
+        }
+        
+        /* Hexagon pulse - expanding and fading */
+        @keyframes hexagon-pulse {
+          0% { transform: translate(-50%, -50%) rotate(0deg) translateY(-60px) scale(0); opacity: 0; }
+          50% { opacity: 1; }
+          100% { transform: translate(-50%, -50%) rotate(360deg) translateY(-100px) scale(1.5); opacity: 0; }
+        }
+        
+        /* Hexagon implode - shrinking inward */
+        @keyframes hexagon-implode {
+          0% { transform: translate(-50%, -50%) rotate(0deg) translateY(-50px) scale(1); opacity: 1; }
+          100% { transform: translate(-50%, -50%) rotate(-180deg) translateY(0px) scale(0); opacity: 0; }
         }
         @keyframes fade-in-out {
           0% { opacity: 0; transform: scale(0.9); }
           20% { opacity: 1; transform: scale(1); }
           80% { opacity: 1; transform: scale(1); }
           100% { opacity: 0; transform: scale(0.9); }
+        }
+        
+        /* Fade rotate for X marks on lose */
+        @keyframes fade-rotate {
+          0% { opacity: 0; transform: translate(-50%, -50%) rotate(0deg) translateY(-80px) scale(0.5); }
+          30% { opacity: 1; }
+          100% { opacity: 0; transform: translate(-50%, -50%) rotate(360deg) translateY(-120px) scale(1.5); }
         }
       `}</style>
     </PageLayout>
