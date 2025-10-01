@@ -62,12 +62,12 @@ export function WalletSelector({
           <ChevronDown className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="center" side="bottom" className="w-56">
+      <DropdownMenuContent align="center" side="bottom" className="w-56 !bg-[#0c0f10] border-white/30 shadow-xl">
         <DropdownMenuItem 
           onClick={() => handleWalletTypeSelect('abstract')}
           className={cn(
-            "cursor-pointer",
-            currentWalletType === 'abstract' && "bg-accent"
+            "cursor-pointer hover:bg-white/[0.04] focus:bg-white/[0.04]",
+            currentWalletType === 'abstract' && "bg-white/[0.06]"
           )}
         >
           <AbstractLogo className="mr-2 h-4 w-4" />
@@ -77,8 +77,8 @@ export function WalletSelector({
         <DropdownMenuItem 
           onClick={() => handleWalletTypeSelect('classic')}
           className={cn(
-            "cursor-pointer",
-            currentWalletType === 'classic' && "bg-accent"
+            "cursor-pointer hover:bg-white/[0.04] focus:bg-white/[0.04]",
+            currentWalletType === 'classic' && "bg-white/[0.06]"
           )}
         >
           <WalletIcon className="mr-2 h-4 w-4" />
