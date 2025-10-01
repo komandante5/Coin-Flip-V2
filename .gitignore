@@ -46,3 +46,6 @@ coverage/
 /deployments-zk
 **/deployments/localhost.json
 **/deployments.localhost.json
+
+# TypeScript build info
+*.tsbuildinfo
