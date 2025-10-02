@@ -12,11 +12,14 @@ import { classicWagmiConfig } from "@/wagmi";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Disable automatic refetching during SSR/hydration to prevent state updates during render
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      staleTime: 60 * 1000, // 1 minute
+      // Optimize for better performance and reduced re-renders
+      refetchOnWindowFocus: false, // Don't refetch when window regains focus
+      refetchOnMount: false, // Don't refetch on component mount
+      refetchOnReconnect: false, // Don't refetch on network reconnect
+      staleTime: 60 * 1000, // Data stays fresh for 1 minute
+      gcTime: 5 * 60 * 1000, // Garbage collect inactive data after 5 minutes
+      retry: 1, // Only retry failed queries once
+      retryDelay: 1000, // Wait 1 second between retries
     },
   },
 });

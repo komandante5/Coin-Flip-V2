@@ -6,7 +6,20 @@ import { chain } from "@/config/chain";
 
 // Learn more about Tanstack Query: https://tanstack.com/query/latest/docs/framework/react/reference/QueryClientProvider
 // We create our own query client to share our app's query cache with the AbstractWalletProvider.
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Optimize for better performance and reduced re-renders
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      staleTime: 60 * 1000,
+      gcTime: 5 * 60 * 1000,
+      retry: 1,
+      retryDelay: 1000,
+    },
+  },
+});
 
 export function NextAbstractWalletProvider({
   children,
