@@ -7,7 +7,6 @@ import { ChevronRight, Sparkles } from "lucide-react";
 import Image from "next/image";
 import { toast } from 'sonner';
 import { PageLayout } from '@/components/layout/page-layout';
-import { SectionTitle } from '@/components/ui/section-title';
 import { Pill } from '@/components/ui/pill';
 // LOCAL TESTING ONLY: Wallet selector for local development
 // TODO: DELETE THIS WHEN GOING TO PRODUCTION - ONLY FOR LOCAL TESTING
@@ -20,28 +19,32 @@ import coinFlipJson from '../src/abi/CoinFlip.json';
 import mockVrfJson from '../src/abi/MockVRF.json';
 import addresses from '../src/deployments.localhost.json';
 
+// Import types and utilities
+import type { CoinSide, FlipEvent, GameStatsArray } from '@/types/coinflip';
+import { 
+  DEFAULT_BET_AMOUNT, 
+  EXPECTED_CHAIN_ID, 
+  ANIMATION_DURATIONS, 
+  POLLING_INTERVALS,
+  CACHE_CONFIG,
+  QUICK_BET_PRESETS,
+  MAX_RECENT_FLIPS,
+  DEFAULT_MIN_BET,
+  DEFAULT_MAX_BET
+} from '@/config/constants';
+import { 
+  setTimestampInCache, 
+  getCachedTimestamp, 
+  getBestTimestamp,
+  formatTimeAgo 
+} from '@/lib/timestamp-utils';
+import { formatAddress } from '@/lib/format-utils';
+
 const coinFlipAbi = coinFlipJson.abi as Abi;
 const mockVrfAbi = mockVrfJson.abi as Abi;
 
 const coinFlipAddress = (addresses as any).coinFlip as `0x${string}`;
 const mockVrfAddress = (addresses as any).mockVRF as `0x${string}`;
-
-// Feature flag for demo data (set to false to disable demo bets)
-const ENABLE_DEMO_FLIPS = false;
-
-type GameStatsArray = [bigint, bigint, bigint, bigint, bigint, bigint];
-type CoinSide = 'Heads' | 'Tails';
-
-interface FlipEvent {
-  player: string;
-  betAmount: bigint;
-  choice: number;
-  result?: number;
-  didWin?: boolean;
-  payout?: bigint;
-  requestId: bigint;
-  timestamp: number;
-}
 
 // Custom hook for animated number counter
 function useAnimatedNumber(targetValue: number, duration: number = 600): number {
@@ -84,69 +87,7 @@ function useAnimatedNumber(targetValue: number, duration: number = 600): number 
   return displayValue;
 }
 
-// Timestamp cache utility for local development
-// Stores real timestamps for bets to avoid "over a week ago" issue with local blockchain
-// 
-// TODO: REVISIT TIMESTAMP IMPLEMENTATION FOR PRODUCTION
-// ======================================================
-// Current Implementation: localStorage cache (client-side only)
-// - Works well for local development and testing
-// - Timestamps only accurate for bets made while user has page open
-// - Data persists in browser but not shared across users/devices
-// 
-// Future Options for Production:
-// 
-// OPTION A: Backend Database (Recommended for multi-user app)
-// - Set up indexer service (e.g., Ponder, The Graph, or custom Node.js)
-// - Listen to FlipCommitted events and store { requestId, timestamp } in database
-// - Frontend queries API for last 20 bets with accurate timestamps
-// - Pros: Accurate for all users, scalable, can add analytics
-// - Cons: Requires backend infrastructure
-// 
-// OPTION B: Smart Contract Modification
-// - Add timestamp field to FlipCommitted event in CoinFlip.sol
-// - Emit block.timestamp with each event
-// - Read timestamps directly from event logs
-// - Pros: Fully decentralized, no backend needed
-// - Cons: Requires contract redeployment, slightly higher gas costs
-// 
-// OPTION C: Enhanced Block Timestamp Handling
-// - For production networks (Abstract mainnet/testnet), block timestamps are reliable
-// - Keep current implementation but remove fallback logic
-// - Test on Abstract testnet to verify block.timestamp accuracy
-// - Pros: No changes needed if timestamps are accurate
-// - Cons: Depends on network behavior
-// 
-// Recommendation: Start with Option C on testnet, move to Option A if needed
-// ======================================================
-
-const TIMESTAMP_CACHE_KEY = 'coinflip_bet_timestamps';
-
-function getTimestampCache(): Record<string, number> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const cached = localStorage.getItem(TIMESTAMP_CACHE_KEY);
-    return cached ? JSON.parse(cached) : {};
-  } catch {
-    return {};
-  }
-}
-
-function setTimestampInCache(requestId: string, timestamp: number): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const cache = getTimestampCache();
-    cache[requestId] = timestamp;
-    localStorage.setItem(TIMESTAMP_CACHE_KEY, JSON.stringify(cache));
-  } catch (error) {
-    console.warn('Failed to cache timestamp:', error);
-  }
-}
-
-function getCachedTimestamp(requestId: string): number | null {
-  const cache = getTimestampCache();
-  return cache[requestId] || null;
-}
+// Note: Timestamp utilities have been moved to @/lib/timestamp-utils.ts for better organization
 
 
 function CoinflipPage() {
@@ -165,7 +106,7 @@ function CoinflipPage() {
 
   const [selected, setSelected] = useState<CoinSide>('Heads');
   const [selectedForUI, setSelectedForUI] = useState<CoinSide>('Heads');
-  const [amount, setAmount] = useState<string>("0.01");
+  const [amount, setAmount] = useState<string>(DEFAULT_BET_AMOUNT);
   const [isFlipping, setIsFlipping] = useState(false);
   const [isRevealing, setIsRevealing] = useState(false);
   const [flipResult, setFlipResult] = useState<CoinSide | null>(null);
@@ -187,22 +128,22 @@ function CoinflipPage() {
     setHasMounted(true);
   }, []);
 
-  // Read min/max bet from contract with caching
+  // Read min/max bet from contract with optimized caching
   const { data: gameStats, refetch: refetchStats } = useReadContract({
     address: coinFlipAddress,
     abi: coinFlipAbi,
     functionName: 'getGameStats',
     query: {
-      staleTime: 30000, // Cache for 30 seconds
-      refetchInterval: 30000, // Auto-refetch every 30 seconds
+      staleTime: CACHE_CONFIG.STALE_TIME,
+      refetchInterval: CACHE_CONFIG.REFETCH_INTERVAL,
     }
   }) as { data: GameStatsArray | undefined, refetch: () => void };
 
-  // Get contract balance (bankroll)
+  // Get contract balance (bankroll) with optimized refetch interval
   const { data: contractBalance, refetch: refetchBalance } = useBalance({
     address: coinFlipAddress,
     query: {
-      refetchInterval: 10000, // Auto-refetch every 10 seconds
+      refetchInterval: CACHE_CONFIG.BALANCE_REFETCH_INTERVAL,
     }
   });
 
@@ -211,62 +152,24 @@ function CoinflipPage() {
   const animatedBalance = useAnimatedNumber(contractBalanceValue, 800);
 
 
-  // Simple demo data fallback for development when no events exist
-  // Controlled by ENABLE_DEMO_FLIPS feature flag
-  const demoFlips = useMemo<FlipEvent[]>(() => {
-    // Only show demo data if feature flag is enabled and in development mode
-    if (!ENABLE_DEMO_FLIPS || process.env.NODE_ENV !== 'development') return [];
-    
-    const now = Math.floor(Date.now() / 1000);
-    const demoAddress = address ?? '0x1234567890123456789012345678901234567890';
-    // Return in descending order (most recent first)
-    return [
-      {
-        player: demoAddress,
-        betAmount: parseEther('0.1'),
-        choice: 0,
-        result: 0,
-        didWin: true,
-        payout: parseEther('0.2'),
-        requestId: BigInt(2),
-        timestamp: now - 120, // 2 minutes ago (most recent)
-      },
-      {
-        player: '0x9876543210987654321098765432109876543210',
-        betAmount: parseEther('0.05'),
-        choice: 1,
-        result: 0,
-        didWin: false,
-        payout: undefined,
-        requestId: BigInt(1),
-        timestamp: now - 300, // 5 minutes ago (older)
-      },
-    ];
-  }, [address]);
-
   
 
   // Memoize expensive calculations
   const { minBet, maxBet } = useMemo(() => {
     if (gameStats && Array.isArray(gameStats) && gameStats.length === 6) {
-      return {
-        minBet: Number(formatEther(gameStats[4] || BigInt(0))),
-        maxBet: Number(formatEther(gameStats[5] || BigInt(0)))
-      };
-    }
-    return { minBet: 0.01, maxBet: 7.4703 };
-  }, [gameStats]);
+    return {
+      minBet: Number(formatEther(gameStats[4] || BigInt(0))),
+      maxBet: Number(formatEther(gameStats[5] || BigInt(0)))
+    };
+  }
+  return { minBet: DEFAULT_MIN_BET, maxBet: DEFAULT_MAX_BET };
+}, [gameStats]);
 
   // Memoized fetch function to prevent unnecessary re-creations
   const fetchRecentFlips = useCallback(async () => {
-    if (!publicClient) {
-      console.log('No publicClient available for fetching flips');
-      return;
-    }
+    if (!publicClient) return;
 
     try {
-      console.log('Fetching recent flips from blockchain...');
-      console.log('Contract address:', coinFlipAddress);
       
       // Get recent committed events
       const commitLogs = await publicClient.getLogs({
@@ -276,8 +179,6 @@ function CoinflipPage() {
         toBlock: 'latest'
       });
 
-      console.log(`Found ${commitLogs.length} commit events`);
-
       // Get recent revealed events
       const revealLogs = await publicClient.getLogs({
         address: coinFlipAddress,
@@ -285,8 +186,6 @@ function CoinflipPage() {
         fromBlock: 'earliest',
         toBlock: 'latest'
       });
-
-      console.log(`Found ${revealLogs.length} reveal events`);
 
       // CRITICAL FIX: Sort ALL commits by block number first to ensure correct ordering
       // This prevents issues when there are more than 20 bets
@@ -299,8 +198,8 @@ function CoinflipPage() {
         return Number(a.logIndex || 0) - Number(b.logIndex || 0);
       });
 
-      // Now get the last 20 (most recent) commits
-      const recentCommits = sortedCommits.slice(-20);
+      // Now get the last N (most recent) commits
+      const recentCommits = sortedCommits.slice(-MAX_RECENT_FLIPS);
       
       // Combine and process events
       const flips: FlipEvent[] = [];
@@ -315,49 +214,15 @@ function CoinflipPage() {
         const resultValue = revealLog?.args?.result as number | undefined;
         const requestIdStr = commitLog.args.requestId?.toString() || '';
         
-        // Smart timestamp handling: Use cached > block timestamp if valid > current time
-        let timestamp: number;
-        const cachedTimestamp = getCachedTimestamp(requestIdStr);
+        // Use optimized timestamp utility for smart timestamp handling
         const blockTimestamp = Number(block.timestamp);
-        const now = Math.floor(Date.now() / 1000);
+        const latestBlockNumber = recentCommits[recentCommits.length - 1].blockNumber;
+        const timestamp = getBestTimestamp(requestIdStr, blockTimestamp, commitLog.blockNumber, latestBlockNumber);
         
-        if (cachedTimestamp) {
-          // Use cached timestamp (most reliable for bets we've seen)
-          timestamp = cachedTimestamp;
-        } else {
-          // Check if block timestamp is reasonable (within last 24 hours or not too far in future)
-          const isReasonable = blockTimestamp > 0 && 
-                              blockTimestamp > now - 86400 && 
-                              blockTimestamp <= now + 3600;
-          
-          if (isReasonable) {
-            // Use block timestamp if it seems valid
-            timestamp = blockTimestamp;
-          } else {
-            // Fallback to current time for unrealistic block timestamps
-            // Use block number to estimate relative time (newer blocks = more recent)
-            const blocksAgo = Number(recentCommits[recentCommits.length - 1].blockNumber) - Number(commitLog.blockNumber);
-            timestamp = now - (blocksAgo * 2); // Assume ~2 seconds per block
-          }
-          
-          // Cache this timestamp for future reference
+        // Cache the timestamp for future reference
+        if (!getCachedTimestamp(requestIdStr)) {
           setTimestampInCache(requestIdStr, timestamp);
         }
-        
-        console.log(`Processing commit log ${i}:`, {
-          blockNumber: commitLog.blockNumber.toString(),
-          player: commitLog.args.player,
-          betAmount: commitLog.args.betAmount?.toString(),
-          choiceRaw: choiceValue,
-          choiceDecoded: choiceValue === 0 ? 'HEADS' : choiceValue === 1 ? 'TAILS' : 'UNKNOWN',
-          resultRaw: resultValue,
-          resultDecoded: resultValue === 0 ? 'HEADS' : resultValue === 1 ? 'TAILS' : resultValue === undefined ? 'PENDING' : 'UNKNOWN',
-          requestId: requestIdStr,
-          hasReveal: !!revealLog,
-          blockTimestamp: new Date(blockTimestamp * 1000).toLocaleString(),
-          cachedTimestamp: cachedTimestamp ? new Date(cachedTimestamp * 1000).toLocaleString() : 'none',
-          finalTimestamp: new Date(timestamp * 1000).toLocaleString()
-        });
         
         flips.push({
           player: commitLog.args.player as string,
@@ -372,21 +237,8 @@ function CoinflipPage() {
       }
 
       // Sort by block timestamp descending (most recent first)
-      // Since we already sorted by block number and took last 20, reversing gives us newest first
+      // Since we already sorted by block number and took last N, reversing gives us newest first
       const ordered = flips.reverse();
-      
-      console.log(`Processed ${ordered.length} flips for display (showing last 20 bets)`);
-      console.log('All 20 Recent flips:', ordered.map(f => ({
-        blockTimestamp: new Date(f.timestamp * 1000).toLocaleTimeString(),
-        player: f.player.slice(0, 10),
-        betAmount: formatEther(f.betAmount),
-        choiceRaw: f.choice,
-        choice: f.choice === 0 ? 'Heads' : 'Tails',
-        resultRaw: f.result,
-        result: f.result === 0 ? 'Heads' : f.result === 1 ? 'Tails' : 'Pending',
-        didWin: f.didWin,
-        requestId: f.requestId.toString()
-      })));
       
       // Detect new bets by comparing requestIds (more reliable than length)
       setRecentFlips(prev => {
@@ -408,22 +260,18 @@ function CoinflipPage() {
           }, 600);
         }
         
-        return ordered.length > 0 ? ordered : demoFlips;
+        return ordered;
       });
     } catch (error) {
       console.error('Error fetching flip events:', error);
-      setRecentFlips(demoFlips);
+      setRecentFlips([]);
     }
-  }, [publicClient, demoFlips]);
+  }, [publicClient]);
 
-  // Fetch recent flip events with reduced frequency
+  // Fetch recent flip events with optimized polling interval
   useEffect(() => {
-    console.log('Initial fetch of recent flips');
     fetchRecentFlips();
-    const interval = setInterval(() => {
-      console.log('Auto-refreshing bet history (30s interval)');
-      fetchRecentFlips();
-    }, 30000);
+    const interval = setInterval(fetchRecentFlips, POLLING_INTERVALS.BET_HISTORY);
     return () => clearInterval(interval);
   }, [fetchRecentFlips]);
 
@@ -432,7 +280,7 @@ const memoizedRefetchStats = useCallback(() => {
 }, [refetchStats]);
 
 useEffect(() => {
-  const id = setInterval(memoizedRefetchStats, 30000);
+  const id = setInterval(memoizedRefetchStats, POLLING_INTERVALS.GAME_STATS);
   return () => clearInterval(id);
 }, [memoizedRefetchStats]);
 
@@ -466,18 +314,14 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
     }
     
     // Check if connected to the correct network
-    const expectedChainId = 260; // anvilZkSync (verified from Docker node)
-    if (chain?.id !== expectedChainId) {
-      console.error('Wrong network. Expected:', expectedChainId, 'Got:', chain?.id);
+    if (chain?.id !== EXPECTED_CHAIN_ID) {
       
       // Try to switch to the correct chain
       try {
-        console.log('Attempting to switch to chain:', expectedChainId);
-        await switchChain({ chainId: expectedChainId });
-        console.log('Successfully switched to chain:', expectedChainId);
+        await switchChain({ chainId: EXPECTED_CHAIN_ID });
       } catch (error) {
         console.error('Failed to switch chain:', error);
-        alert(`Please manually switch to the Anvil ZkSync network (Chain ID: ${expectedChainId}) in your wallet`);
+        alert(`Please manually switch to the Anvil ZkSync network (Chain ID: ${EXPECTED_CHAIN_ID}) in your wallet`);
         return;
       }
     }
@@ -486,16 +330,6 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
     // This prevents stale closures from using old values
     const userChoice = selectedForUI;
     const side = userChoice === 'Heads' ? 0 : 1;
-    
-    console.log('=== FLIP DEBUG INFO ===');
-    console.log('User clicked choice:', userChoice);
-    console.log('Sending to contract: side =', side, '(0=HEADS, 1=TAILS)');
-    console.log('UI Selected (button highlighted):', selectedForUI);
-    console.log('Coin Display (selected state):', selected);
-    console.log('Amount:', amount);
-    console.log('Wallet type:', walletType);
-    console.log('Chain ID:', publicClient?.chain?.id);
-    console.log('======================');
     
     // Phase 1: Start fast spinning immediately
     playFlipStart(); // Play flip start sound
@@ -526,8 +360,6 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
     });
     
     try {
-      console.log('>>> Calling flipCoin with:', { userChoice, side, amount: parseEther(amount) });
-
       // First transaction - coin flip commit (coin spins fast during wallet confirmation)
       const txHash = await writeContractAsync({
         address: coinFlipAddress,
@@ -535,12 +367,10 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         functionName: 'flipCoin',
         args: [side],
         value: parseEther(amount),
-        gas: BigInt(500000) // Add explicit gas limit
+        gas: BigInt(500000)
       });
-      console.log('First transaction hash:', txHash);
 
       // Transaction confirmed - start reveal process
-      console.log('Waiting for first transaction receipt...');
       toast.loading('Transaction confirmed! Revealing result...', {
         id: 'flip-transaction',
         duration: Infinity,
@@ -560,49 +390,38 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         },
       });
       const receiptCommit = await publicClient!.waitForTransactionReceipt({ hash: txHash });
-      console.log('First transaction receipt:', receiptCommit);
       
       const commitEvents = parseEventLogs({
         abi: coinFlipAbi,
         logs: receiptCommit.logs,
         eventName: 'FlipCommitted'
       });
-      console.log('Commit events:', commitEvents);
       
       const requestId = (commitEvents[0]?.args as any)?.requestId as bigint;
       if (!requestId) {
         throw new Error('Failed to get request ID from FlipCommitted event');
       }
-      console.log('Request ID:', requestId);
       
       // Cache the current timestamp for this bet (so it shows "just now")
       const currentTimestamp = Math.floor(Date.now() / 1000);
       setTimestampInCache(requestId.toString(), currentTimestamp);
-      console.log('Cached timestamp for new bet:', requestId.toString(), new Date(currentTimestamp * 1000).toLocaleString());
       
       // Trigger wallet balance refetch since player made a bet
       triggerBalanceRefetch();
       
       // Immediately fetch bet history to show the pending bet
-      console.log('Fetching bet history to show pending bet...');
       await fetchRecentFlips();
 
       // Second transaction for VRF callback (still spinning fast)
       const randomNumber = BigInt(Math.floor(Math.random() * 2 ** 32));
-      console.log('Calling triggerCallback with args:', { 
-        target: coinFlipAddress, 
-        requestId, 
-        randomNumber 
-      });
       
       const txHash2 = await writeContractAsync({
         address: mockVrfAddress,
         abi: mockVrfAbi,
         functionName: 'triggerCallback',
         args: [coinFlipAddress, requestId, randomNumber],
-        gas: BigInt(300000) // Add explicit gas limit
+        gas: BigInt(300000)
       });
-      console.log('Second transaction hash:', txHash2);
 
       const receipt = await publicClient!.waitForTransactionReceipt({ hash: txHash2 });
       
@@ -618,13 +437,6 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         const result = event.result === 0 ? 'Heads' : 'Tails';
         const didWin = event.didWin as boolean;
         const payout = event.payout as bigint;
-        
-        console.log('=== FLIP RESULT ===');
-        console.log('User chose:', userChoice);
-        console.log('Result was:', result);
-        console.log('Did win:', didWin);
-        console.log('Payout:', payout.toString());
-        console.log('==================');
         
         // Dismiss loading toast
         toast.dismiss('flip-transaction');
@@ -644,12 +456,6 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         } else { // startingSide === 'Tails' && result === 'Tails'
           animationClass = 'animate-reveal-tails-to-tails';
         }
-        
-        console.log('=== REVEAL ANIMATION INFO ===');
-        console.log('Starting side:', startingSide, '(rotation:', currentRotation, ')');
-        console.log('Result side:', result);
-        console.log('Animation class:', animationClass);
-        console.log('============================');
         
         setRevealAnimation(animationClass);
         setIsRevealing(true);
@@ -729,12 +535,11 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         // IMPORTANT: Wait until reveal animation completes before updating UI
         // This prevents bet history and balance from updating while coin is still revealing
         setTimeout(() => {
-          console.log('Reveal animation completed, refreshing stats and bet history...');
           memoizedRefetchStats();
-          refetchBalance(); // Update contract balance
-          triggerBalanceRefetch(); // Update player's wallet balance in nav
-          fetchRecentFlips(); // Refresh bet history after reveal
-        }, 3000); // Match the reveal animation duration
+          refetchBalance();
+          triggerBalanceRefetch();
+          fetchRecentFlips();
+        }, ANIMATION_DURATIONS.BALANCE_UPDATE_DELAY);
       } else {
         throw new Error('No FlipRevealed event found in transaction receipt');
       }
@@ -785,21 +590,6 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
     }
   }, [address, selectedForUI, amount, writeContractAsync, publicClient, memoizedRefetchStats, fetchRecentFlips, isConnected, chain, switchChain, refetchBalance, walletType, playWin, playLose]);
 
-  // Memoized utility functions
-  const formatAddress = useCallback((addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`, []);
-  const formatTimeAgo = useCallback((timestamp: number) => {
-    const now = Math.floor(Date.now() / 1000);
-    const diff = now - timestamp;
-    
-    // Handle invalid/future timestamps
-    if (diff < 0 || timestamp === 0) return 'Just now';
-    
-    if (diff < 60) return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`; // Less than 7 days
-    return 'Over a week ago';
-  }, []);
 
   const displayedFlips = useMemo(() => {
     if (activeTab === 'mine') {
@@ -1153,16 +943,13 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                 </div>
               </div>
 
-              {/* Quick bet buttons - NOW VISIBLE ON MOBILE TOO */}
+              {/* Quick bet buttons - VISIBLE ON ALL DEVICES */}
               <div className="grid grid-cols-5 gap-fluid-2 mb-2">
                 {useMemo(() => {
                   // Use Math.floor to ensure MAX value never exceeds maxBet due to rounding
                   const maxBetValue = (Math.floor(maxBet * 10000) / 10000).toFixed(4);
                   return [
-                    { label: '0.01', value: '0.01' },
-                    { label: '0.1', value: '0.1' },
-                    { label: '0.5', value: '0.5' },
-                    { label: '1.0', value: '1' },
+                    ...QUICK_BET_PRESETS,
                     { label: 'MAX', value: maxBetValue },
                   ];
                 }, [maxBet]).map((b, i) => (
