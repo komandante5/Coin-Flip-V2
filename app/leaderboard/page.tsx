@@ -8,29 +8,19 @@ import { Crown, TrendingUp } from 'lucide-react';
 import { PageLayout } from '@/components/layout/page-layout';
 import addresses from '../../src/deployments.localhost.json';
 
-type PlayerStats = {
-  address: string;
-  totalBets: bigint;
-  totalPayout: bigint;
-  wins: number;
-  losses: number;
-  betCount: number;
-  biggestWin: bigint;
-};
+import type { PlayerStats } from '@/types/coinflip';
+import { LEADERBOARD_CONFIG } from '@/config/constants';
+import { formatAddress } from '@/lib/format-utils';
 
 const coinFlipAddress = (addresses as any).coinFlip as `0x${string}`;
 
-// Memoized utility functions for better performance
+// Memoized utility function for better performance
 const formatEth = (value: bigint) => {
   try {
     return Number(formatEther(value)).toFixed(4);
   } catch {
     return '0.0000';
   }
-};
-
-const shortAddress = (addr: string) => {
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 };
 
 function LeaderboardPageComponent() {
@@ -46,7 +36,9 @@ function LeaderboardPageComponent() {
     try {
       // Optimize: Get recent blocks first, fall back to full history if needed
       const latestBlock = await publicClient.getBlockNumber();
-      const fromBlock = latestBlock > 10000n ? latestBlock - 10000n : 'earliest';
+      const fromBlock = latestBlock > LEADERBOARD_CONFIG.MAX_HISTORY_BLOCKS 
+        ? latestBlock - LEADERBOARD_CONFIG.MAX_HISTORY_BLOCKS 
+        : 'earliest';
       
       const revealLogs = await publicClient.getLogs({
         address: coinFlipAddress,
@@ -124,7 +116,7 @@ function LeaderboardPageComponent() {
         if (b.profit < a.profit) return -1;
         return 0;
       })
-      .slice(0, 100);
+      .slice(0, LEADERBOARD_CONFIG.MAX_DISPLAYED_WINNERS);
       
     const winners = sortedStats.filter(s => s.profit > 0n);
     
@@ -162,7 +154,7 @@ function LeaderboardPageComponent() {
                       {w.address.slice(2,4).toUpperCase()}
                     </div>
                     <div>
-                      <div className="font-semibold text-fluid-sm">{shortAddress(w.address)}</div>
+                      <div className="font-semibold text-fluid-sm">{formatAddress(w.address)}</div>
                       <div className="text-fluid-xs text-neutral-300">Wins {w.wins}</div>
                     </div>
                   </div>
@@ -213,7 +205,7 @@ function LeaderboardPageComponent() {
               const profitPositive = row.profit > 0n;
               const profitStr = `${profitPositive ? '+' : ''}${formatEth(row.profit)} ETH`;
               const bestWinStr = `+${formatEth(row.biggestWin)} ETH`;
-              const short = shortAddress(row.address);
+              const short = formatAddress(row.address);
               const rankIndex = idx + 4; // continue after podium
               const rankBadge = 'from-emerald-500/20 to-teal-400/20';
               return (
