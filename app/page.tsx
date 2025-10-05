@@ -118,6 +118,7 @@ function CoinflipPage() {
   const [activeTab, setActiveTab] = useState<'all' | 'mine'>('all');
   const contentWrapperRef = useRef<HTMLDivElement | null>(null);
   const [newBetIndices, setNewBetIndices] = useState<Set<number>>(new Set());
+  const [betValidationError, setBetValidationError] = useState<string | null>(null);
 
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
@@ -164,6 +165,28 @@ function CoinflipPage() {
   }
   return { minBet: DEFAULT_MIN_BET, maxBet: DEFAULT_MAX_BET };
 }, [gameStats]);
+
+  // Validate bet amount and show appropriate error message
+  useEffect(() => {
+    if (!amount || amount === '') {
+      setBetValidationError(null);
+      return;
+    }
+    
+    const numAmount = Number(amount);
+    if (isNaN(numAmount)) {
+      setBetValidationError('Invalid amount');
+      return;
+    }
+    
+    if (numAmount < minBet) {
+      setBetValidationError(`Minimum bet: ${minBet.toFixed(4)} ETH`);
+    } else if (numAmount > maxBet) {
+      setBetValidationError(`Maximum bet: ${maxBet.toFixed(4)} ETH`);
+    } else {
+      setBetValidationError(null);
+    }
+  }, [amount, minBet, maxBet]);
 
   // Memoized fetch function to prevent unnecessary re-creations
   const fetchRecentFlips = useCallback(async () => {
@@ -460,15 +483,26 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         setRevealAnimation(animationClass);
         setIsRevealing(true);
         
-        // Set the result to be shown at 2.5 seconds into the reveal animation
+        // Set the result to be shown at 2.5 seconds into the reveal animation (coin lands on final face)
         setTimeout(() => {
           setFlipResult(result);
+        }, 2500);
+        
+        // Complete the animation at 3 seconds
+        setTimeout(() => {
+          setIsFlipping(false);
+          setIsRevealing(false);
+          setRevealAnimation('');
+          // Update the coin to show the actual result and keep it displayed
+          setSelected(result);
+          setFlipResult(null);
+          // Set final rotation based on result: Heads = 0°, Tails = 180°
+          // The animation already landed on the correct face, we just maintain it
+          setCurrentRotation(result === 'Heads' ? 0 : 180);
           
-          // Show result toast with enhanced styling and play sound
+          // NOW play sounds and show result toasts AFTER coin animation completes
           if (didWin) {
-            playWin(); // Play win sound
-            // Trigger wallet animation with win amount
-            triggerWinAnimation(Number(formatEther(payout)).toFixed(4));
+            playWin(); // Play win sound AFTER coin lands
             toast.success(`🎉 You won ${Number(formatEther(payout)).toFixed(4)} ETH!`, {
               duration: 5000,
               className: 'text-2xl font-black',
@@ -489,7 +523,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
               },
             });
           } else {
-            playLose(); // Play lose sound
+            playLose(); // Play lose sound AFTER coin lands
             toast.error(`Better luck next time!`, {
               duration: 3000,
               className: 'text-xl font-bold',
@@ -508,19 +542,6 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
               },
             });
           }
-        }, 2500);
-        
-        // Complete the animation at 3 seconds
-        setTimeout(() => {
-          setIsFlipping(false);
-          setIsRevealing(false);
-          setRevealAnimation('');
-          // Update the coin to show the actual result and keep it displayed
-          setSelected(result);
-          setFlipResult(null);
-          // Set final rotation based on result: Heads = 0°, Tails = 180°
-          // The animation already landed on the correct face, we just maintain it
-          setCurrentRotation(result === 'Heads' ? 0 : 180);
           
           // Show celebration for wins or loses
           if (didWin) {
@@ -532,14 +553,20 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
           }
         }, 3000);
         
-        // IMPORTANT: Wait until reveal animation completes before updating UI
-        // This prevents bet history and balance from updating while coin is still revealing
+        // IMPORTANT: Wait until reveal animation completes before updating secondary UI
+        // Sequence: Coin reveals (3s) → Sounds play → Brief delay → Wallet/balance/history animations
         setTimeout(() => {
+          // Trigger wallet animation with win amount (after sound has played)
+          if (didWin) {
+            triggerWinAnimation(Number(formatEther(payout)).toFixed(4));
+          }
+          
+          // Now update all the secondary UI elements
           memoizedRefetchStats();
           refetchBalance();
           triggerBalanceRefetch();
           fetchRecentFlips();
-        }, ANIMATION_DURATIONS.BALANCE_UPDATE_DELAY);
+        }, ANIMATION_DURATIONS.BALANCE_UPDATE_DELAY + 300); // Extra 300ms delay after coin lands
       } else {
         throw new Error('No FlipRevealed event found in transaction receipt');
       }
@@ -936,10 +963,24 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                       />
                     </div>
                   </div>
-                  {/* Min/Max info - smaller on mobile */}
-                  <div className="mt-1 text-center text-[10px] md:text-fluid-xs text-neutral-400">
-                    Min: {minBet.toFixed(4)} • Max: {maxBet.toFixed(4)}
-                  </div>
+                  
+                  {/* Validation error message - subtle and non-intrusive */}
+                  {betValidationError ? (
+                    <div className="mt-1.5 text-center animate-shake">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30">
+                        <svg className="w-3 h-3 text-amber-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span className="text-[10px] md:text-xs text-amber-400 font-medium">
+                          {betValidationError}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-center text-[10px] md:text-fluid-xs text-neutral-400">
+                      Min: {minBet.toFixed(4)} • Max: {maxBet.toFixed(4)}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1221,6 +1262,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         .animate-coin-flip-fast { animation: coin-flip-fast 1s linear infinite; }
         .animate-bet-slide-in { animation: bet-slide-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
         .animate-fade-in-out { animation: fade-in-out 2s ease-in-out; }
+        .animate-shake { animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
         
         /* 
          * DETERMINISTIC REVEAL ANIMATIONS
@@ -1370,6 +1412,13 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
           0% { opacity: 0; transform: translate(-50%, -50%) rotate(0deg) translateY(-80px) scale(0.5); }
           30% { opacity: 1; }
           100% { opacity: 0; transform: translate(-50%, -50%) rotate(360deg) translateY(-120px) scale(1.5); }
+        }
+        
+        /* Subtle shake animation for validation errors */
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-4px); }
+          75% { transform: translateX(4px); }
         }
       `}</style>
     </PageLayout>
