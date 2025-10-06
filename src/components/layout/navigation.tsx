@@ -2,31 +2,47 @@
 
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { usePathname } from 'next/navigation';
+import { useAccount } from 'wagmi';
 // LOCAL TESTING ONLY: Using unified connect wallet button for local development
 // TODO: SWITCH BACK TO ConnectWalletButton WHEN GOING TO PRODUCTION
 import { UnifiedConnectWalletButton } from '@/components/unified-connect-wallet-button';
-import { Menu, X, Coins, Trophy, Gift, Activity } from "lucide-react";
+import { Menu, X, Coins, Trophy, Gift, Activity, Shield } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSoundEffects } from '@/hooks/useSoundEffects';
+import addresses from '@/deployments.localhost.json';
 
-const navigationItems = [
+const baseNavigationItems = [
   { label: "Coinflip", href: "/", icon: Coins },
   { label: "Leaderboard", href: "/leaderboard", icon: Trophy },
   { label: "Rewards", href: "/rewards", icon: Gift },
   { label: "On‑chain", href: "/onchain", icon: Activity },
 ];
 
+const adminNavigationItem = { label: "Admin", href: "/admin", icon: Shield };
+
+const ownerAddress = (addresses as any).owner as string;
+
 function NavigationComponent() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const pathname = usePathname();
+  const { address: connectedAddress } = useAccount();
   
   // Sound effects
   const { playButtonClick } = useSoundEffects();
   
   const headerRef = useRef<HTMLElement | null>(null);
+
+  // Check if connected wallet is the owner
+  const isOwner = connectedAddress && ownerAddress && 
+    connectedAddress.toLowerCase() === ownerAddress.toLowerCase();
+
+  // Navigation items with conditional admin link
+  const navigationItems = isOwner 
+    ? [...baseNavigationItems, adminNavigationItem]
+    : baseNavigationItems;
 
   // Debounced scroll handler to improve performance
   const handleScroll = useCallback(() => {
@@ -67,6 +83,7 @@ function NavigationComponent() {
     if (pathname === '/leaderboard') return 'Leaderboard';
     if (pathname === '/rewards') return 'Rewards';
     if (pathname === '/onchain') return 'On‑chain';
+    if (pathname === '/admin') return 'Admin';
     return '';
   }, [pathname])();
 
