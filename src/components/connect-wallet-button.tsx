@@ -32,6 +32,9 @@ interface ConnectWalletButtonProps {
  * - Dropdown menu with address copy functionality
  */
 function ConnectWalletButtonComponent({ className, customDropdownItems }: ConnectWalletButtonProps) {
+  // Prevent hydration mismatch by tracking mount state
+  const [hasMounted, setHasMounted] = useState(false)
+  
   // Wagmi hooks for wallet state and balance
   const { isConnected, status, address } = useAccount()
   const { data: balance, isLoading: isBalanceLoading, refetch: refetchBalance } = useBalance({ address })
@@ -48,6 +51,11 @@ function ConnectWalletButtonComponent({ className, customDropdownItems }: Connec
   // Local state for connection status and copy feedback
   const isConnecting = status === 'connecting' || status === 'reconnecting'
   const [copied, setCopied] = useState(false)
+  
+  // Set mounted state after initial render
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
   
   // Refetch balance when triggered
   useEffect(() => {
@@ -83,6 +91,19 @@ function ConnectWalletButtonComponent({ className, customDropdownItems }: Connec
       setTimeout(() => setCopied(false), 2000)
     }
   }, [address, playButtonClick])
+
+  // Prevent hydration mismatch: Show loading state until mounted
+  if (!hasMounted) {
+    return (
+      <Button
+        disabled
+        className={cn("cursor-pointer group min-w-40", className)}
+      >
+        Connect Wallet
+        <AbstractLogo className="ml-2" />
+      </Button>
+    )
+  }
 
   // Loading state: Show connecting button with spinning logo
   if (isConnecting) {

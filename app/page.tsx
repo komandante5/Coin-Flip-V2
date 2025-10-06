@@ -645,7 +645,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
           className="bg-black/90 backdrop-blur-sm border border-white/30 shadow-xl"
         />
         
-        {/* Network status indicator */}
+        {/* Network status indicator - only render after mount to prevent hydration mismatch */}
         {hasMounted && isConnected && (
           <div className={`px-3 py-2 rounded-lg text-xs font-medium bg-black/90 backdrop-blur-sm border shadow-xl ${
             chain?.id === 260 
@@ -1012,7 +1012,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
               </div>
               
               {/* Contract Bankroll - HIDDEN ON MOBILE */}
-              {hasMounted && contractBalance && (
+              {contractBalance && (
                 <div className="hidden md:block text-center mb-2">
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
                     <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1028,8 +1028,8 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
 
             {/* Flip button - CLOSER TO BET AMOUNT ON MOBILE */}
             <div className="mt-fluid-2 md:mt-fluid-3 lg:mt-fluid-3 w-full mx-auto" style={{ maxWidth: 'min(100%, 400px)' }}>
-              {/* Debug info - HIDDEN ON MOBILE */}
-              {process.env.NODE_ENV === 'development' && hasMounted && (
+              {/* Debug info - HIDDEN ON MOBILE - only render after mount to prevent hydration mismatch */}
+              {hasMounted && process.env.NODE_ENV === 'development' && (
                 <div className="hidden md:block mb-2 text-xs text-neutral-400 text-center">
                   {address ? `Connected: ${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'} | 
                   Chain: {chain?.id || 'Unknown'} | 

@@ -30,6 +30,9 @@ interface ClassicConnectWalletButtonProps {
  * TODO: DELETE THIS COMPONENT WHEN GOING TO PRODUCTION - ONLY FOR LOCAL TESTING
  */
 function ClassicConnectWalletButtonComponent({ className, customDropdownItems }: ClassicConnectWalletButtonProps) {
+  // Prevent hydration mismatch by tracking mount state
+  const [hasMounted, setHasMounted] = useState(false)
+  
   // Wagmi hooks for wallet state and balance
   const { isConnected, status, address } = useAccount()
   const { data: balance, isLoading: isBalanceLoading, refetch: refetchBalance } = useBalance({ 
@@ -50,6 +53,11 @@ function ClassicConnectWalletButtonComponent({ className, customDropdownItems }:
 
   // Local state for copy feedback
   const [copied, setCopied] = useState(false)
+  
+  // Set mounted state after initial render
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
   
   // Refetch balance when triggered
   useEffect(() => {
@@ -85,6 +93,19 @@ function ClassicConnectWalletButtonComponent({ className, customDropdownItems }:
       setTimeout(() => setCopied(false), 2000)
     }
   }, [address, playButtonClick])
+
+  // Prevent hydration mismatch: Show loading state until mounted
+  if (!hasMounted) {
+    return (
+      <Button
+        disabled
+        className={cn("cursor-pointer group min-w-40", className)}
+      >
+        Connect Wallet
+        <WalletIcon className="ml-2 h-4 w-4" />
+      </Button>
+    )
+  }
 
   // Loading state: Show connecting button
   if (status === 'connecting' || status === 'reconnecting' || isPending) {

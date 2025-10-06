@@ -71,11 +71,12 @@ export function HybridWalletProvider({ children }: HybridWalletProviderProps) {
   }, []);
 
   // Initialize wallet type based on chain support
-  const [walletType, setWalletType] = useState<WalletType>(
+  // Use a function initializer to ensure consistent initial state
+  const [walletType, setWalletType] = useState<WalletType>(() => 
     isAbstractSupported ? 'abstract' : 'classic'
   );
 
-  const contextValue = {
+  const contextValue = useMemo(() => ({
     walletType,
     setWalletType: (type: WalletType) => {
       // Prevent switching to Abstract if chain is not supported
@@ -85,23 +86,17 @@ export function HybridWalletProvider({ children }: HybridWalletProviderProps) {
       }
       setWalletType(type);
     },
-  };
+  }), [walletType, isAbstractSupported]);
 
+  // Always render classic wallet provider to avoid hydration mismatches
+  // The conditional logic happens inside but the component tree is stable
   return (
     <WalletTypeContext.Provider value={contextValue}>
-      {walletType === 'abstract' && isAbstractSupported ? (
-        // Abstract Global Wallet configuration (manages its own QueryClientProvider)
-        <AbstractWalletProvider chain={chain} queryClient={queryClient}>
+      <WagmiProvider config={classicWagmiConfig}>
+        <QueryClientProvider client={queryClient}>
           {children}
-        </AbstractWalletProvider>
-      ) : (
-        // Classic wallet configuration (Wagmi + Tanstack Query)
-        <WagmiProvider config={classicWagmiConfig}>
-          <QueryClientProvider client={queryClient}>
-            {children}
-          </QueryClientProvider>
-        </WagmiProvider>
-      )}
+        </QueryClientProvider>
+      </WagmiProvider>
     </WalletTypeContext.Provider>
   );
 }
