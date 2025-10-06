@@ -161,7 +161,7 @@
   /* Optimized scrollbar styles for better performance */
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
     /* Use containment for better rendering performance */
     contain: layout style;
   }
@@ -175,15 +175,14 @@
   }
   
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.3);
+    background-color: rgba(255, 255, 255, 0.1);
     border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
     /* Use hardware acceleration */
     will-change: background-color;
   }
   
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(255, 255, 255, 0.15);
   }
   
   /* Remove number input spinners */
