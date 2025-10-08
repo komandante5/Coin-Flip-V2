@@ -82,12 +82,13 @@ async function deployWithZkSync() {
   // 5) Save deployment addresses
   const outDir = path.join(process.cwd(), "deployments");
   await mkdir(outDir, { recursive: true });
-  const outFile = path.join(outDir, "localhost.json");
+  const networkName = hre.network.name;
+  const outFile = path.join(outDir, `${networkName}.json`);
   await writeFile(
     outFile,
     JSON.stringify(
       {
-        network: "localhost",
+        network: networkName,
         coinFlip: await coinFlip.getAddress(),
         mockVRF: await mockVRF.getAddress(),
         owner: wallet.address
@@ -160,12 +161,13 @@ async function deployWithViem() {
   // 5) Persist addresses for the test script.
   const outDir = path.join(process.cwd(), "deployments");
   await mkdir(outDir, { recursive: true });
-  const outFile = path.join(outDir, "localhost.json");
+  const networkName = hre.network.name;
+  const outFile = path.join(outDir, `${networkName}.json`);
   await writeFile(
     outFile,
     JSON.stringify(
       {
-        network: "localhost",
+        network: networkName,
         coinFlip: coinFlip.address,
         mockVRF: mockVRF.address,
         owner: owner.account.address

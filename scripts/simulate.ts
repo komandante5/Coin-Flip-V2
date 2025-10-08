@@ -19,18 +19,19 @@ async function main() {
   const [owner, player] = await viem.getWalletClients();
   const publicClient = await viem.getPublicClient();
 
-  // Attach if `deployments/localhost.json` exists; else deploy fresh.
-  let coinFlip: Awaited<ReturnType<typeof viem.getContractAt>>;
-  let mockVRF: Awaited<ReturnType<typeof viem.getContractAt>>;
+  // Deploy or attach to existing contracts
+  let coinFlip: Awaited<ReturnType<typeof viem.deployContract<"CoinFlip">>>;
+  let mockVRF: Awaited<ReturnType<typeof viem.deployContract<"MockVRF">>>;
 
   try {
-    const file = path.join(process.cwd(), "deployments", "localhost.json");
+    const networkName = hre.network.name;
+    const file = path.join(process.cwd(), "deployments", `${networkName}.json`);
     const saved = JSON.parse(await readFile(file, "utf8")) as {
       coinFlip: string; mockVRF: string;
     };
     console.log(`Loaded addresses from ${file}`);
-    mockVRF = await viem.getContractAt("MockVRF", saved.mockVRF as `0x${string}`);
-    coinFlip  = await viem.getContractAt("CoinFlip", saved.coinFlip as `0x${string}`);
+    mockVRF = await viem.getContractAt("MockVRF", saved.mockVRF as `0x${string}`) as typeof mockVRF;
+    coinFlip = await viem.getContractAt("CoinFlip", saved.coinFlip as `0x${string}`) as typeof coinFlip;
   } catch {
     console.log("No saved addresses; deploying new instances...");
     mockVRF = await viem.deployContract("MockVRF");
