@@ -16,9 +16,10 @@ contract CoinFlip {
     address public vrfAddress;
     
     // Game parameters
-    uint256 public constant HOUSE_EDGE = 1_000_000; // 1% in 8-decimal format
+    uint256 public constant MIN_HOUSE_EDGE = 500_000; // 0.5% in 8-decimal format
+    uint256 public constant MAX_HOUSE_EDGE = 10_000_000; // 10% in 8-decimal format
+    uint256 public houseEdge = 1_000_000; // 1% in 8-decimal format (configurable)
     uint256 public constant WIN_CHANCE = 50_000_000; // 50% in 8-decimal format  
-    uint256 public constant BASE_PAYOUT = 200_000_000 - 2 * HOUSE_EDGE; // 1.98x payout (2x - 1% house edge) in 8-decimal format
     uint256 public minBet = 0.001 ether; // Minimum bet amount
     uint256 public maxRewardPercent = 10_000_000; // 10% of contract balance max payout
     
@@ -36,6 +37,7 @@ contract CoinFlip {
         uint256 betAmount;
         CoinSide choice;
         bool processed;
+        uint256 houseEdgeAtBet;
     }
     
     mapping(uint256 => FlipRequest) public flipRequests;
@@ -65,6 +67,7 @@ contract CoinFlip {
     event VRFChanged(address oldVRF, address newVRF);
     event MinBetUpdated(uint256 oldMinBet, uint256 newMinBet);
     event MaxRewardPercentUpdated(uint256 oldPercent, uint256 newPercent);
+    event HouseEdgeUpdated(uint256 oldHouseEdge, uint256 newHouseEdge);
     event FundsDeposited(address indexed depositor, uint256 amount);
     event FundsWithdrawn(address indexed recipient, uint256 amount);
     
@@ -137,6 +140,15 @@ contract CoinFlip {
     }
     
     /**
+     * @notice Set house edge percentage
+     */
+    function setHouseEdge(uint256 _houseEdge) external onlyOwner {
+        require(_houseEdge >= MIN_HOUSE_EDGE && _houseEdge <= MAX_HOUSE_EDGE, "Invalid house edge");
+        emit HouseEdgeUpdated(houseEdge, _houseEdge);
+        houseEdge = _houseEdge;
+    }
+    
+    /**
      * @notice Deposit ETH to fund the contract
      */
     function depositFunds() external payable onlyOwner {
@@ -167,6 +179,19 @@ contract CoinFlip {
     }
     
     // ----------------------------------------------------------------------------
+    // Helper Functions
+    // ----------------------------------------------------------------------------
+    
+    /**
+     * @notice Calculate base payout multiplier from house edge
+     * @param _houseEdge House edge in 8-decimal format
+     * @return Base payout multiplier in 8-decimal format
+     */
+    function calculateBasePayout(uint256 _houseEdge) internal pure returns (uint256) {
+        return 200_000_000 - 2 * _houseEdge;
+    }
+    
+    // ----------------------------------------------------------------------------
     // Game Functions
     // ----------------------------------------------------------------------------
     
@@ -177,8 +202,9 @@ contract CoinFlip {
     function flipCoin(CoinSide _choice) external payable {
         require(msg.value >= minBet, "Bet amount below minimum");
         
-        // Calculate potential payout
-        uint256 potentialPayout = (msg.value * BASE_PAYOUT) / 1e8;
+        // Calculate potential payout using current house edge
+        uint256 basePayout = calculateBasePayout(houseEdge);
+        uint256 potentialPayout = (msg.value * basePayout) / 1e8;
         uint256 maxAllowedPayout = (contractBalance * maxRewardPercent) / 1e8;
         require(potentialPayout <= maxAllowedPayout, "Bet exceeds max reward limit");
         
@@ -188,12 +214,13 @@ contract CoinFlip {
         // Request random number from VRF
         uint256 requestId = vrfSystem.requestRandomNumberWithTraceId(0);
         
-        // Store flip request
+        // Store flip request with current house edge
         flipRequests[requestId] = FlipRequest({
             player: msg.sender,
             betAmount: msg.value,
             choice: _choice,
-            processed: false
+            processed: false,
+            houseEdgeAtBet: houseEdge
         });
         
         emit FlipCommitted(msg.sender, msg.value, _choice, requestId);
@@ -215,8 +242,9 @@ contract CoinFlip {
         uint256 payout = 0;
         
         if (didWin) {
-            // Calculate payout (bet amount * 1.98)
-            payout = (flipReq.betAmount * BASE_PAYOUT) / 1e8;
+            // Calculate payout using house edge from when bet was placed
+            uint256 basePayout = calculateBasePayout(flipReq.houseEdgeAtBet);
+            payout = (flipReq.betAmount * basePayout) / 1e8;
             
             // Ensure we have enough balance
             require(payout <= contractBalance, "Insufficient contract balance");
@@ -251,7 +279,8 @@ contract CoinFlip {
             return (false, "Bet amount below minimum");
         }
         
-        uint256 potentialPayout = (_betAmount * BASE_PAYOUT) / 1e8;
+        uint256 basePayout = calculateBasePayout(houseEdge);
+        uint256 potentialPayout = (_betAmount * basePayout) / 1e8;
         uint256 maxAllowedPayout = (contractBalance * maxRewardPercent) / 1e8;
         
         if (potentialPayout > maxAllowedPayout) {
@@ -268,8 +297,9 @@ contract CoinFlip {
         minBetAmount = minBet;
         
         // Calculate max bet based on max allowed payout
+        uint256 basePayout = calculateBasePayout(houseEdge);
         uint256 maxAllowedPayout = (contractBalance * maxRewardPercent) / 1e8;
-        maxBetAmount = (maxAllowedPayout * 1e8) / BASE_PAYOUT;
+        maxBetAmount = (maxAllowedPayout * 1e8) / basePayout;
         
         if (maxBetAmount < minBetAmount) {
             maxBetAmount = 0; // Indicates insufficient contract balance
@@ -279,24 +309,25 @@ contract CoinFlip {
     /**
      * @notice Calculate payout for a bet amount
      */
-    function calculatePayout(uint256 _betAmount) public pure returns (uint256 potentialPayout) {
-        return (_betAmount * BASE_PAYOUT) / 1e8;
+    function calculatePayout(uint256 _betAmount) public view returns (uint256 potentialPayout) {
+        uint256 basePayout = calculateBasePayout(houseEdge);
+        return (_betAmount * basePayout) / 1e8;
     }
     
     /**
      * @notice Get game statistics
      */
     function getGameStats() public view returns (
-        uint256 houseEdge,
+        uint256 houseEdgePercent,
         uint256 winChance,
         uint256 payoutMultiplier,
         uint256 currentBalance,
         uint256 minBetAmount,
         uint256 maxBetAmount
     ) {
-        houseEdge = HOUSE_EDGE;
+        houseEdgePercent = houseEdge;
         winChance = WIN_CHANCE;
-        payoutMultiplier = BASE_PAYOUT;
+        payoutMultiplier = calculateBasePayout(houseEdge);
         currentBalance = contractBalance;
         (minBetAmount, maxBetAmount) = getBetLimits();
     }
