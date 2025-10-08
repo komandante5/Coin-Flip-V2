@@ -86,10 +86,12 @@ export default function AdminPage() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [newMinBet, setNewMinBet] = useState('');
   const [newMaxRewardPercent, setNewMaxRewardPercent] = useState('');
+  const [newHouseEdge, setNewHouseEdge] = useState('');
   const [currentToastId, setCurrentToastId] = useState<string | number | undefined>();
   const [transactionStatus, setTransactionStatus] = useState<string>('');
   const [showMinBetInfo, setShowMinBetInfo] = useState(false);
   const [showMaxPayoutInfo, setShowMaxPayoutInfo] = useState(false);
+  const [showHouseEdgeInfo, setShowHouseEdgeInfo] = useState(false);
 
   // Set mounted state after initial render to prevent hydration issues
   useEffect(() => {
@@ -134,6 +136,15 @@ export default function AdminPage() {
     address: coinFlipAddress,
     abi: coinFlipAbi,
     functionName: 'maxRewardPercent',
+  });
+
+  const { 
+    data: houseEdge, 
+    refetch: refetchHouseEdge 
+  } = useReadContract({
+    address: coinFlipAddress,
+    abi: coinFlipAbi,
+    functionName: 'houseEdge',
   });
 
   // Transaction receipt handling
@@ -295,12 +306,14 @@ export default function AdminPage() {
       refetchContractBalanceTracked();
       refetchMinBet();
       refetchMaxRewardPercent();
+      refetchHouseEdge();
       
       // Give a small delay to ensure blockchain state is updated, then refetch again
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['balance'] });
         refetchContractBalance();
         refetchContractBalanceTracked();
+        refetchHouseEdge();
       }, 1500);
 
       // Reset the write contract state and clear status
@@ -318,6 +331,7 @@ export default function AdminPage() {
     refetchContractBalanceTracked,
     refetchMinBet,
     refetchMaxRewardPercent,
+    refetchHouseEdge,
     queryClient,
     resetWriteContract
   ]);
@@ -521,6 +535,51 @@ export default function AdminPage() {
     }
   };
 
+  // Handle update house edge
+  const handleUpdateHouseEdge = async () => {
+    if (!newHouseEdge || parseFloat(newHouseEdge) <= 0) {
+      toast.error('Invalid Percentage', {
+        description: 'Please enter a valid house edge percentage',
+      });
+      return;
+    }
+
+    const percent = parseFloat(newHouseEdge);
+    if (percent < 0.5 || percent > 10) {
+      toast.error('Invalid Percentage', {
+        description: 'House edge must be between 0.5% and 10%',
+      });
+      return;
+    }
+
+    try {
+      // Convert percentage to 8 decimal format (e.g., 1% = 1_000_000)
+      const percentIn8Decimals = BigInt(Math.floor(percent * 1_000_000));
+      const percentValue = newHouseEdge;
+      setNewHouseEdge('');
+      
+      writeContract({
+        address: coinFlipAddress,
+        abi: coinFlipAbi,
+        functionName: 'setHouseEdge',
+        args: [percentIn8Decimals],
+      });
+      
+      const toastId = toast.loading('Updating House Edge', {
+        description: `Setting house edge to ${percentValue}%...`,
+      });
+      setCurrentToastId(toastId);
+    } catch (error: any) {
+      console.error('Update house edge error:', error);
+      toast.dismiss(); // Dismiss any loading toasts
+      toast.error('Update Failed', {
+        description: error.message || 'Failed to update house edge',
+      });
+      setTransactionStatus('');
+      setCurrentToastId(undefined);
+    }
+  };
+
   // Access control UI
   if (!isConnected) {
     return (
@@ -587,6 +646,7 @@ export default function AdminPage() {
                   refetchContractBalanceTracked();
                   refetchMinBet();
                   refetchMaxRewardPercent();
+                  refetchHouseEdge();
                   queryClient.invalidateQueries({ queryKey: ['balance'] });
                 }}
                 disabled={loading || isWritePending || isConfirming}
@@ -750,10 +810,10 @@ export default function AdminPage() {
             <h2 className="text-xl font-bold">Game Configuration</h2>
           </div>
           <p className="text-sm text-muted-foreground mb-6">
-            Control betting limits and risk exposure for the house
+            Control betting limits, risk exposure, and house profitability
           </p>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Min Bet */}
             <div className="bg-muted/30 border border-border/50 rounded-lg p-5 relative">
               <div className="flex items-start justify-between mb-3">
@@ -1053,6 +1113,184 @@ export default function AdminPage() {
                 <button
                   onClick={handleUpdateMaxReward}
                   disabled={isWritePending || isConfirming || !newMaxRewardPercent}
+                  className="px-4 bg-purple-500 hover:bg-purple-600 disabled:bg-purple-500/50 text-white font-medium text-sm rounded-lg transition-colors"
+                >
+                  Update
+                </button>
+              </div>
+            </div>
+
+            {/* House Edge */}
+            <div className="bg-muted/30 border border-border/50 rounded-lg p-5 relative">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-base font-semibold">House Edge</h3>
+                    <button
+                      onClick={() => setShowHouseEdgeInfo(true)}
+                      className="p-1 hover:bg-muted rounded-full transition-colors"
+                      title="Show guidelines"
+                    >
+                      <Info className="w-4 h-4 text-green-400" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Your profit percentage on each bet
+                  </p>
+                </div>
+                <Pill variant="default">
+                  {formatPercent(houseEdge as bigint)}%
+                </Pill>
+              </div>
+              
+              {/* House Edge Info Popup */}
+              {showHouseEdgeInfo && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                  <div className="bg-card border border-border rounded-xl max-w-lg w-full p-6 shadow-2xl">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <Info className="w-5 h-5 text-green-400" />
+                        <h3 className="text-lg font-bold">House Edge Guidelines</h3>
+                      </div>
+                      <button
+                        onClick={() => setShowHouseEdgeInfo(false)}
+                        className="p-1 hover:bg-muted rounded-full transition-colors"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                        <p className="text-sm font-medium text-green-400 mb-2">💰 Profit Margin:</p>
+                        <p className="text-sm text-muted-foreground">
+                          House edge is the percentage of each bet that the house expects to keep as profit over time. 
+                          It directly determines your payout multiplier and long-term profitability.
+                        </p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <p className="text-sm font-semibold">How it affects payouts:</p>
+                        
+                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+                          <p className="text-sm font-medium text-blue-400 mb-1">Formula:</p>
+                          <p className="text-xs font-mono bg-background/50 rounded px-2 py-1 mb-2">
+                            Payout Multiplier = 2.00x - (2 × House Edge)
+                          </p>
+                          <div className="space-y-1 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">0.5% edge:</span>
+                              <span className="font-medium text-green-400">1.99x payout</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">1.0% edge:</span>
+                              <span className="font-medium text-green-400">1.98x payout</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">2.0% edge:</span>
+                              <span className="font-medium text-amber-400">1.96x payout</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">5.0% edge:</span>
+                              <span className="font-medium text-red-400">1.90x payout</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                          <p className="text-sm font-medium text-green-400 mb-1">✓ Competitive (0.5-2%)</p>
+                          <p className="text-xs text-muted-foreground">
+                            Attracts more players with better odds, lower per-bet profit but higher volume
+                          </p>
+                        </div>
+                        
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+                          <p className="text-sm font-medium text-amber-400 mb-1">⚖️ Standard (2-4%)</p>
+                          <p className="text-xs text-muted-foreground">
+                            Balanced approach, typical for most online casinos
+                          </p>
+                        </div>
+                        
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                          <p className="text-sm font-medium text-red-400 mb-1">! High Margin (4-10%)</p>
+                          <p className="text-xs text-muted-foreground">
+                            Higher profit per bet but less attractive to players, may reduce volume
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-3">
+                        <p className="text-xs font-medium mb-1">💡 Pro Tip:</p>
+                        <p className="text-xs text-muted-foreground">
+                          Lower house edge can attract more players and increase total volume, 
+                          potentially earning more profit overall despite lower margins per bet.
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setShowHouseEdgeInfo(false)}
+                      className="w-full mt-4 bg-green-500 hover:bg-green-600 text-white font-medium py-2 rounded-lg transition-colors"
+                    >
+                      Got it
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 mb-4">
+                <p className="text-xs text-green-400 font-medium mb-1">💰 House Profit Margin:</p>
+                <p className="text-xs text-muted-foreground">
+                  Percentage of each bet kept as profit. Lower edge = better player odds + higher payout. 
+                  Higher edge = more profit per bet but less competitive.
+                </p>
+              </div>
+
+              <div className="bg-background/50 rounded-lg p-3 mb-4">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Current Impact:</p>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">House edge:</span>
+                    <span className="font-medium">{formatPercent(houseEdge as bigint)}%</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Win payout multiplier:</span>
+                    <span className="font-medium text-green-400">
+                      {houseEdge 
+                        ? ((200_000_000 - 2 * Number(houseEdge)) / 100_000_000).toFixed(4) + 'x'
+                        : '1.98x'
+                      }
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Example: 1 ETH bet wins:</span>
+                    <span className="font-medium text-blue-400">
+                      {houseEdge 
+                        ? ((200_000_000 - 2 * Number(houseEdge)) / 100_000_000).toFixed(4) + ' ETH'
+                        : '1.98 ETH'
+                      }
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <label className="block text-xs font-medium text-muted-foreground mb-2">
+                Update House Edge % (0.5-10%)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  placeholder="e.g., 1.0"
+                  value={newHouseEdge}
+                  onChange={(e) => setNewHouseEdge(e.target.value)}
+                  className="flex-1 px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  step="0.1"
+                  min="0.5"
+                  max="10"
+                />
+                <button
+                  onClick={handleUpdateHouseEdge}
+                  disabled={isWritePending || isConfirming || !newHouseEdge}
                   className="px-4 bg-purple-500 hover:bg-purple-600 disabled:bg-purple-500/50 text-white font-medium text-sm rounded-lg transition-colors"
                 >
                   Update

@@ -156,14 +156,15 @@ function CoinflipPage() {
   
 
   // Memoize expensive calculations
-  const { minBet, maxBet } = useMemo(() => {
+  const { minBet, maxBet, payoutMultiplier } = useMemo(() => {
     if (gameStats && Array.isArray(gameStats) && gameStats.length === 6) {
     return {
       minBet: Number(formatEther(gameStats[4] || BigInt(0))),
-      maxBet: Number(formatEther(gameStats[5] || BigInt(0)))
+      maxBet: Number(formatEther(gameStats[5] || BigInt(0))),
+      payoutMultiplier: Number(gameStats[2] || BigInt(0)) / 100_000_000 // Convert from 8-decimal format
     };
   }
-  return { minBet: DEFAULT_MIN_BET, maxBet: DEFAULT_MAX_BET };
+  return { minBet: DEFAULT_MIN_BET, maxBet: DEFAULT_MAX_BET, payoutMultiplier: 1.98 };
 }, [gameStats]);
 
   // Validate bet amount and show appropriate error message
@@ -900,7 +901,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                     </div>
                   </div>
                   <div className="mt-1 md:mt-1.5">
-                    <Pill active={selectedForUI === 'Heads'}>2.00x</Pill>
+                    <Pill active={selectedForUI === 'Heads'}>{payoutMultiplier.toFixed(2)}x</Pill>
                   </div>
                 </div>
               </div>
@@ -930,7 +931,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                     </div>
                   </div>
                   <div className="mt-1 md:mt-1.5">
-                    <Pill active={selectedForUI === 'Tails'}>2.00x</Pill>
+                    <Pill active={selectedForUI === 'Tails'}>{payoutMultiplier.toFixed(2)}x</Pill>
                   </div>
                 </div>
               </div>
