@@ -89,6 +89,11 @@ function useAnimatedNumber(targetValue: number, duration: number = 600): number 
 
 // Note: Timestamp utilities have been moved to @/lib/timestamp-utils.ts for better organization
 
+// TODO: TIMESTAMP DISPLAY - Currently disabled for better UX
+// - Timestamps are hidden in bet history to improve visual clarity
+// - Need to re-enable timestamps in production with proper formatting
+// - Consider adding timestamp toggle or better positioning
+// - Current implementation: commented out in both mobile and desktop bet history sections
 
 function CoinflipPage() {
   // LOCAL TESTING ONLY: Wallet type selection for local development
@@ -1111,11 +1116,12 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                         key={i} 
                         className={`px-fluid-3 py-fluid-3 ${newBetIndices.has(i) ? 'animate-bet-slide-in' : ''}`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="text-fluid-xs text-neutral-400 truncate max-w-[60%]">{formatAddress(flip.player)}</div>
-                          <div className="text-fluid-xs text-neutral-500 whitespace-nowrap">{formatTimeAgo(flip.timestamp)}</div>
+                        <div className="flex items-center justify-between mb-fluid-2">
+                          <div className="text-fluid-xs text-neutral-400 truncate">{formatAddress(flip.player)}</div>
+                          {/* TODO: Re-enable timestamps in production - currently hidden for better UX */}
+                          {/* <div className="text-fluid-xs text-neutral-500 whitespace-nowrap">{formatTimeAgo(flip.timestamp)}</div> */}
                         </div>
-                        <div className="mt-fluid-2 flex justify-between items-center">
+                        <div className="flex justify-between items-center">
                           <div className="flex items-center gap-fluid-2 flex-1">
                             <Image
                               src={flip.choice === 0 ? '/Heads.png' : '/Tails.png'}
@@ -1130,24 +1136,24 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                             <div className="text-fluid-xs">{flip.choice === 0 ? 'Heads' : 'Tails'}</div>
                           </div>
                           <div className="text-center flex-1">
-                            <div className={`${flip.didWin === true ? 'text-emerald-300' : flip.didWin === false ? 'text-rose-300' : 'text-yellow-300'} text-fluid-xs`}> 
+                            <div className={`${flip.didWin === true ? 'text-emerald-300' : flip.didWin === false ? 'text-rose-300' : 'text-yellow-300'} text-fluid-xs font-medium`}> 
                               {flip.didWin === undefined ? 'Pending' : flip.didWin ? 'Win' : 'Loss'}
                             </div>
                           </div>
                           <div className="text-right flex-1">
                             <div className="flex items-center justify-end gap-1 text-fluid-xs whitespace-nowrap">
-                              <svg className="w-2.5 h-2.5 text-emerald-300 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                              <svg className="w-2.5 h-2.5 text-neutral-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/>
                               </svg>
-                              {Number(formatEther(flip.betAmount)).toFixed(4)}
+                              <span className="text-neutral-300">{Number(formatEther(flip.betAmount)).toFixed(4)}</span>
                             </div>
-                            {flip.payout && flip.didWin && (
-                              <div className="flex items-center justify-end gap-1 text-fluid-xs text-emerald-300/80 whitespace-nowrap">
-                                <span>+</span>
+                            {flip.didWin === true && flip.payout && flip.payout > 0n && (
+                              <div className="flex items-center justify-end gap-1 text-fluid-xs text-emerald-400 whitespace-nowrap mt-0.5">
+                                <span className="font-medium">+</span>
                                 <svg className="w-2.5 h-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
                                   <path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/>
                                 </svg>
-                                <span>{Number(formatEther(flip.payout)).toFixed(4)}</span>
+                                <span className="font-medium">{(Number(formatEther(flip.payout)) - Number(formatEther(flip.betAmount))).toFixed(4)}</span>
                               </div>
                             )}
                           </div>
@@ -1208,11 +1214,12 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                     key={i} 
                     className={`px-fluid-3 py-fluid-3 ${newBetIndices.has(i) ? 'animate-bet-slide-in' : ''}`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="text-fluid-xs text-neutral-400 truncate max-w-[60%]">{formatAddress(flip.player)}</div>
-                      <div className="text-fluid-xs text-neutral-500 whitespace-nowrap">{formatTimeAgo(flip.timestamp)}</div>
+                    <div className="flex items-center justify-between mb-fluid-2">
+                      <div className="text-fluid-xs text-neutral-400 truncate">{formatAddress(flip.player)}</div>
+                      {/* TODO: Re-enable timestamps in production - currently hidden for better UX */}
+                      {/* <div className="text-fluid-xs text-neutral-500 whitespace-nowrap">{formatTimeAgo(flip.timestamp)}</div> */}
                     </div>
-                    <div className="mt-fluid-2 flex justify-between items-center">
+                    <div className="flex justify-between items-center">
                       <div className="flex items-center gap-fluid-2 flex-1">
                         <Image
                           src={flip.choice === 0 ? '/Heads.png' : '/Tails.png'}
@@ -1227,24 +1234,24 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                         <div className="text-fluid-xs">{flip.choice === 0 ? 'Heads' : 'Tails'}</div>
                       </div>
                       <div className="text-center flex-1">
-                        <div className={`${flip.didWin === true ? 'text-emerald-300' : flip.didWin === false ? 'text-rose-300' : 'text-yellow-300'} text-fluid-xs`}> 
+                        <div className={`${flip.didWin === true ? 'text-emerald-300' : flip.didWin === false ? 'text-rose-300' : 'text-yellow-300'} text-fluid-xs font-medium`}> 
                           {flip.didWin === undefined ? 'Pending' : flip.didWin ? 'Win' : 'Loss'}
                         </div>
                       </div>
                       <div className="text-right flex-1">
                         <div className="flex items-center justify-end gap-1 text-fluid-xs whitespace-nowrap">
-                          <svg className="w-2.5 h-2.5 text-emerald-300 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                          <svg className="w-2.5 h-2.5 text-neutral-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/>
                           </svg>
-                          {Number(formatEther(flip.betAmount)).toFixed(4)}
+                          <span className="text-neutral-300">{Number(formatEther(flip.betAmount)).toFixed(4)}</span>
                         </div>
-                        {flip.payout && flip.didWin && (
-                          <div className="flex items-center justify-end gap-1 text-fluid-xs text-emerald-300/80 whitespace-nowrap">
-                            <span>+</span>
+                        {flip.didWin === true && flip.payout && flip.payout > 0n && (
+                          <div className="flex items-center justify-end gap-1 text-fluid-xs text-emerald-400 whitespace-nowrap mt-0.5">
+                            <span className="font-medium">+</span>
                             <svg className="w-2.5 h-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
                               <path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/>
                             </svg>
-                            <span>{Number(formatEther(flip.payout)).toFixed(4)}</span>
+                            <span className="font-medium">{(Number(formatEther(flip.payout)) - Number(formatEther(flip.betAmount))).toFixed(4)}</span>
                           </div>
                         )}
                       </div>

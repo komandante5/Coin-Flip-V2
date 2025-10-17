@@ -696,8 +696,8 @@ export default function AdminPage() {
               <Pill variant="info">Profit</Pill>
             </div>
             <h3 className="text-sm text-muted-foreground mb-1">House Profit</h3>
-            <p className="text-2xl font-bold text-blue-500">
-              +{formatEther(stats.houseProfit)} ETH
+            <p className={`text-2xl font-bold ${stats.houseProfit >= 0 ? 'text-blue-500' : 'text-red-500'}`}>
+              {stats.houseProfit >= 0 ? '+' : ''}{formatEther(stats.houseProfit)} ETH
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               {stats.totalBetsCount} total bets
