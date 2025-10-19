@@ -24,7 +24,7 @@ Make sure your ZKsync in-memory node is running in Docker:
 
 ### 1. Deploy Script (`deploy-coinflip.ts`)
 
-**Purpose:** Deploy CoinFlip and MockVRF contracts to any network.
+**Purpose:** Interactively deploy CoinFlip and MockVRF contracts to any network.
 
 **Usage:**
 ```bash
@@ -42,12 +42,47 @@ npm run deploy:evm:base-sepolia
 npm run deploy:evm:base
 npm run deploy:evm:bsc-testnet
 npm run deploy:evm:bsc
+
+# Or manually with network flag
+npx hardhat run scripts/deploy-coinflip.ts --network <network-name>
+```
+
+**Interactive Prompts:**
+
+When you run the deployment script, it will interactively ask you:
+
+1. **Which wallet to use** - Select from available accounts configured for the network
+2. **Initial house balance** - How much ETH to deposit into the contract (e.g., "10" for 10 ETH)
+3. **Confirmation** - Review your choices before proceeding
+
+**Example:**
+```
+=== CoinFlip Deployment Configuration ===
+
+Deploying to network: abstractTestnet (ZKsync)
+
+Available wallets:
+  1. Account 1
+  2. Account 2
+  3. Account 3
+
+Select wallet (number): 1
+
+Enter initial house balance in ETH (e.g., 10): 25
+
+=== Configuration Summary ===
+Network: abstractTestnet (ZKsync)
+Wallet: Account 1
+Initial House Balance: 25 ETH
+
+Proceed with deployment? (yes/no): yes
 ```
 
 **What it does:**
+- Displays wallet balance for selected account
 - Deploys MockVRF contract
 - Deploys CoinFlip contract with owner and VRF addresses
-- Funds contract with 10 ETH (for local/testnet)
+- Funds contract with user-specified ETH amount (the "house bankroll")
 - Saves deployment addresses to `deployments/{network}.json`
 - Displays game parameters and contract info
 

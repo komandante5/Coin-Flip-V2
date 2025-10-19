@@ -2,42 +2,123 @@ import hre from "hardhat";
 import { parseEther, formatEther } from "viem";
 import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
+import * as readline from "readline/promises";
+
+// Interface for user prompts
+interface DeploymentConfig {
+  accountIndex: number;
+  initialFunding: string;
+}
+
+async function promptUser(): Promise<DeploymentConfig> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  console.log("\n=== CoinFlip Deployment Configuration ===\n");
+  
+  // Display current network info
+  const isZk = hre.network.config.zksync ? " (ZKsync)" : " (EVM)";
+  console.log(`Deploying to network: ${hre.network.name}${isZk}`);
+
+  // Get accounts for the current network
+  const accounts = hre.network.config.accounts as string[];
+
+  console.log(`\nAvailable wallets:`);
+  if (Array.isArray(accounts)) {
+    accounts.forEach((_, index) => {
+      console.log(`  ${index + 1}. Account ${index + 1}`);
+    });
+  } else {
+    console.log("  1. Default account from mnemonic/private key");
+  }
+
+  const accountChoice = await rl.question("\nSelect wallet (number): ");
+  const accountIndex = parseInt(accountChoice) - 1;
+
+  if (accountIndex < 0 || (Array.isArray(accounts) && accountIndex >= accounts.length)) {
+    rl.close();
+    throw new Error("Invalid wallet selection");
+  }
+
+  // Get initial funding amount
+  const fundingAmount = await rl.question(
+    "\nEnter initial house balance in ETH (e.g., 10): "
+  );
+
+  if (isNaN(parseFloat(fundingAmount)) || parseFloat(fundingAmount) <= 0) {
+    rl.close();
+    throw new Error("Invalid funding amount");
+  }
+
+  console.log("\n=== Configuration Summary ===");
+  console.log(`Network: ${hre.network.name}${isZk}`);
+  console.log(`Wallet: Account ${accountIndex + 1}`);
+  console.log(`Initial House Balance: ${fundingAmount} ETH`);
+
+  const confirm = await rl.question("\nProceed with deployment? (yes/no): ");
+
+  rl.close();
+
+  if (confirm.toLowerCase() !== "yes" && confirm.toLowerCase() !== "y") {
+    throw new Error("Deployment cancelled by user");
+  }
+
+  return {
+    accountIndex,
+    initialFunding: fundingAmount,
+  };
+}
 
 async function main() {
-  console.log("Deploying CoinFlip + MockVRF to ZKsync network...");
+  console.log("=== Interactive CoinFlip Deployment ===");
+
+  // Get deployment configuration from user
+  const config = await promptUser();
+
+  console.log("\n=== Starting Deployment ===\n");
 
   // Check if we're on a ZKsync network
   const isZkSync = hre.network.config.zksync;
-  console.log(`Network: ${hre.network.name}, ZKsync: ${isZkSync}`);
 
   if (isZkSync) {
     // For ZKsync networks, use zkSync-specific deployment
-    await deployWithZkSync();
+    await deployWithZkSync(config);
   } else {
     // For regular networks, use standard viem deployment
-    await deployWithViem();
+    await deployWithViem(config);
   }
 }
 
-async function deployWithZkSync() {
+async function deployWithZkSync(config: DeploymentConfig) {
   console.log("Using ZKsync deployment method...");
   
   // Import ZKsync deployer
   const { Deployer } = await import("@matterlabs/hardhat-zksync");
   const { Wallet, Provider } = await import("zksync-ethers");
   
-  // Get the first account from hardhat config
+  // Get the accounts from hardhat config
   const accounts = hre.network.config.accounts as string[];
   if (!accounts || accounts.length === 0) {
     throw new Error("No accounts configured for this network");
   }
   
+  // Use the selected account
+  if (config.accountIndex >= accounts.length) {
+    throw new Error(`Account index ${config.accountIndex} out of range`);
+  }
+  
   // Create provider for the ZKsync network
   const provider = new Provider(hre.network.config.url);
   
-  // Create wallet using the first private key and connect to provider
-  const wallet = new Wallet(accounts[0], provider);
+  // Create wallet using the selected private key and connect to provider
+  const wallet = new Wallet(accounts[config.accountIndex], provider);
   console.log(`Owner (deployer): ${wallet.address}`);
+  
+  // Check wallet balance
+  const walletBalance = await provider.getBalance(wallet.address);
+  console.log(`Wallet balance: ${formatEther(walletBalance)} ETH`);
   
   // Create deployer instance
   const deployer = new Deployer(hre, wallet);
@@ -57,9 +138,9 @@ async function deployWithZkSync() {
   ]);
   console.log(`CoinFlip deployed at: ${await coinFlip.getAddress()}`);
   
-  // 3) Fund CoinFlip contract
-  console.log("Funding CoinFlip with 10 ETH...");
-  const fundTx = await coinFlip.depositFunds({ value: parseEther("10") });
+  // 3) Fund CoinFlip contract with user-specified amount
+  console.log(`Funding CoinFlip with ${config.initialFunding} ETH...`);
+  const fundTx = await coinFlip.depositFunds({ value: parseEther(config.initialFunding) });
   await fundTx.wait();
   
   // 4) Read contract state
@@ -100,15 +181,28 @@ async function deployWithZkSync() {
   console.log(`Addresses saved to ${outFile}`);
 }
 
-async function deployWithViem() {
+async function deployWithViem(config: DeploymentConfig) {
   console.log("Using standard viem deployment method...");
   
   // Get viem helpers from hardhat runtime environment.
   const { viem } = hre;
   
-  // The first wallet client is used as the deployer/owner.
-  const [owner] = await viem.getWalletClients();
+  // Get all wallet clients and select the one specified by user
+  const walletClients = await viem.getWalletClients();
+  
+  if (config.accountIndex >= walletClients.length) {
+    throw new Error(`Account index ${config.accountIndex} out of range`);
+  }
+  
+  const owner = walletClients[config.accountIndex];
   console.log(`Owner (deployer): ${owner.account.address}`);
+  
+  // Get public client for reading state
+  const publicClient = await viem.getPublicClient();
+  
+  // Check wallet balance
+  const walletBalance = await publicClient.getBalance({ address: owner.account.address });
+  console.log(`Wallet balance: ${formatEther(walletBalance)} ETH`);
 
   // 1) Deploy MockVRF (used to simulate randomness).
   console.log("Deploying MockVRF...");
@@ -123,15 +217,14 @@ async function deployWithViem() {
   ]);
   console.log(`CoinFlip deployed at: ${coinFlip.address}`);
 
-  // 3) Fund CoinFlip so payouts can happen during local testing.
-  console.log("Funding CoinFlip with 10 ETH...");
+  // 3) Fund CoinFlip with user-specified amount.
+  console.log(`Funding CoinFlip with ${config.initialFunding} ETH...`);
   const fundHash = await coinFlip.write.depositFunds({
     account: owner.account,
-    value: parseEther("10")
+    value: parseEther(config.initialFunding)
   });
 
   // Wait for the funding tx to be mined before reading state.
-  const publicClient = await viem.getPublicClient();
   await publicClient.waitForTransactionReceipt({ hash: fundHash });
 
   // 4) Read and print useful stats for quick sanity check.
