@@ -31,12 +31,22 @@
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
     ".next/types/**/*.ts"
-, "hardhat.config.cjs", "hardhat.config.cjs"  ],
+  ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "scripts/**",
+    "test/**",
+    "contracts/**",
+    "artifacts/**",
+    "artifacts-zk/**",
+    "deployments/**",
+    "deployments-zk/**",
+    "hardhat.config.cjs"
   ],
   "ts-node": {
     "compilerOptions": {
