@@ -1,5 +1,5 @@
 import hre from "hardhat";
-import { parseAbiItem } from "viem";
+import { parseAbiItem, decodeEventLog } from "viem";
 import type {
   CoinFlipFixture,
   DeployedContracts,
@@ -60,11 +60,11 @@ export function createEVMFixture(): CoinFlipFixture {
       // Decode FlipCommitted event
       const log = receipt.logs.find((log) => {
         try {
-          const decoded = publicClient.decodeEventLog({
+          const decoded = decodeEventLog({
             abi: coinFlip.abi,
             data: log.data,
             topics: log.topics
-          });
+          }) as { eventName: string };
           return decoded.eventName === "FlipCommitted";
         } catch {
           return false;
@@ -73,11 +73,11 @@ export function createEVMFixture(): CoinFlipFixture {
 
       if (!log) throw new Error("FlipCommitted event not found");
 
-      const decoded = publicClient.decodeEventLog({
+      const decoded = decodeEventLog({
         abi: coinFlip.abi,
         data: log.data,
         topics: log.topics
-      });
+      }) as { args: Record<string, any> };
 
       return {
         player: (decoded.args as any).player,
@@ -107,11 +107,11 @@ export function createEVMFixture(): CoinFlipFixture {
       const coinFlip = await viem.getContractAt("CoinFlip", coinFlipAddr as `0x${string}`);
       const log = receipt.logs.find((log) => {
         try {
-          const decoded = publicClient.decodeEventLog({
+          const decoded = decodeEventLog({
             abi: coinFlip.abi,
             data: log.data,
             topics: log.topics
-          });
+          }) as { eventName: string };
           return decoded.eventName === "FlipRevealed";
         } catch {
           return false;
@@ -120,11 +120,11 @@ export function createEVMFixture(): CoinFlipFixture {
 
       if (!log) throw new Error("FlipRevealed event not found");
 
-      const decoded = publicClient.decodeEventLog({
+      const decoded = decodeEventLog({
         abi: coinFlip.abi,
         data: log.data,
         topics: log.topics
-      });
+      }) as { args: Record<string, any> };
 
       return {
         player: (decoded.args as any).player,

@@ -47,7 +47,6 @@ const networks: Record<SupportedNetwork, NetworkDefinition> = {
     baseChain: {
       id: 260,
       name: "Anvil ZkSync",
-      network: "anvil-zksync",
       nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
       rpcUrls: {
         default: { http: ["http://127.0.0.1:8011"] },

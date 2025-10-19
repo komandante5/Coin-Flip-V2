@@ -1,8 +1,7 @@
-import { createConfig, http } from 'wagmi';
-import { injected, walletConnect, metaMask, coinbaseWallet } from 'wagmi/connectors';
 import { defineChain } from 'viem';
 import { abstractTestnet } from 'viem/chains';
 import { anvilZkSync } from './config/chain';
+import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 
 export const hardhatLocal = defineChain({
   id: 31337,
@@ -15,33 +14,20 @@ export const hardhatLocal = defineChain({
   }
 });
 
-const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID as string | undefined;
+// Export chains for RainbowKit
+export { anvilZkSync, abstractTestnet };
 
-// LOCAL TESTING ONLY: Classic wallet config for local development
-// TODO: DELETE THIS WHEN GOING TO PRODUCTION - ONLY FOR LOCAL TESTING
-export const classicWagmiConfig = createConfig({
+// Get WalletConnect project ID from environment
+const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID as string;
+
+if (!projectId) {
+  throw new Error('NEXT_PUBLIC_WC_PROJECT_ID is required for WalletConnect');
+}
+
+// RainbowKit compatible wagmi config
+export const wagmiConfig = getDefaultConfig({
+  appName: 'Dizzio Coin Flip',
+  projectId,
   chains: [anvilZkSync, hardhatLocal, abstractTestnet],
-  transports: {
-    [anvilZkSync.id]: http(anvilZkSync.rpcUrls.default.http[0]),
-    [hardhatLocal.id]: http(hardhatLocal.rpcUrls.default.http[0]),
-    [abstractTestnet.id]: http()
-  },
-  connectors: [
-    injected(),
-    metaMask(),
-    coinbaseWallet({ appName: 'Coin Flip Game' }),
-    ...(projectId ? [walletConnect({ projectId })] : [])
-  ]
-});
-
-// Abstract Global Wallet config (production ready)
-export const wagmiConfig = createConfig({
-  chains: [anvilZkSync],
-  transports: {
-    [anvilZkSync.id]: http(anvilZkSync.rpcUrls.default.http[0])
-  },
-  connectors: [
-    injected(),
-    ...(projectId ? [walletConnect({ projectId })] : [])
-  ]
+  ssr: true,
 });
