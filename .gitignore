@@ -46,6 +46,9 @@ coverage/
 /deployments-zk
 **/deployments/localhost.json
 **/deployments.localhost.json
+**/deployments/inMemoryNode.json
+**/deployments.abstractMainnet.json
+**/deployments.abstractTestnet.json
 
 # TypeScript build info
 *.tsbuildinfo
