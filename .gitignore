@@ -47,6 +47,7 @@ coverage/
 **/deployments/localhost.json
 **/deployments.localhost.json
 **/deployments/inMemoryNode.json
+**/deployments/abstractTestnet.json
 **/deployments.abstractMainnet.json
 **/deployments.abstractTestnet.json
 

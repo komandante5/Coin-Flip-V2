@@ -1,6 +1,0 @@
-{
-  "network": "inMemoryNode",
-  "coinFlip": "0x22D151A1313d9B517Fa437F1F5B3744E636D8790",
-  "mockVRF": "0xC7B060B7D883DBd86AEc6C2AA71e02Ec6Aaf82CE",
-  "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-}
