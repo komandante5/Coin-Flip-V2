@@ -26,6 +26,7 @@ import {
 import { getDeployments } from '@/config/deployments';
 import coinFlipJson from '@/abi/CoinFlip.json';
 import { formatAddress } from '@/lib/format-utils';
+import { formatTimeAgo } from '@/lib/timestamp-utils';
 
 const deployments = getDeployments();
 const coinFlipAddress = deployments.coinFlip;
@@ -183,7 +184,6 @@ export default function AdminPage() {
           const ts = Number(block.timestamp) * 1000;
           if (reqId) {
             timestampMap.set(reqId, ts);
-            setTimestampInCache(reqId, ts);
           }
         }
       }
@@ -217,8 +217,7 @@ export default function AdminPage() {
 
         // Get timestamp
         const reqIdStr = requestId.toString();
-        const cachedTs = getCachedTimestamp(reqIdStr);
-        const timestamp = timestampMap.get(reqIdStr) || cachedTs || Date.now();
+        const timestamp = timestampMap.get(reqIdStr) || Date.now();
 
         bets.push({
           player,
@@ -610,7 +609,7 @@ export default function AdminPage() {
             <h1 className="text-2xl font-bold text-red-500">Access Denied</h1>
             <p className="text-muted-foreground">Only the contract owner can access this page</p>
             <div className="mt-4 p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground">Connected: {formatAddress(connectedAddress)}</p>
+              <p className="text-sm text-muted-foreground">Connected: {connectedAddress ? formatAddress(connectedAddress) : 'Not connected'}</p>
               <p className="text-sm text-muted-foreground">Owner: {formatAddress(ownerAddress)}</p>
             </div>
           </div>
@@ -684,7 +683,7 @@ export default function AdminPage() {
           <div className="bg-gradient-to-br from-green-500/10 to-green-600/10 border border-green-500/20 rounded-lg p-6">
             <div className="flex items-center justify-between mb-2">
               <Wallet className="w-5 h-5 text-green-500" />
-              <Pill variant="success">Live</Pill>
+              <Pill>Live</Pill>
             </div>
             <h3 className="text-sm text-muted-foreground mb-1">Contract Balance</h3>
             <p className="text-2xl font-bold">
@@ -699,7 +698,7 @@ export default function AdminPage() {
           <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 border border-blue-500/20 rounded-lg p-6">
             <div className="flex items-center justify-between mb-2">
               <TrendingUp className="w-5 h-5 text-blue-500" />
-              <Pill variant="info">Profit</Pill>
+              <Pill>Profit</Pill>
             </div>
             <h3 className="text-sm text-muted-foreground mb-1">House Profit</h3>
             <p className={`text-2xl font-bold ${stats.houseProfit >= 0 ? 'text-blue-500' : 'text-red-500'}`}>
@@ -838,7 +837,7 @@ export default function AdminPage() {
                     The smallest bet players can place
                   </p>
                 </div>
-                <Pill variant="default">
+                <Pill>
                   {minBet ? formatEther(minBet as bigint) : '0'} ETH
                 </Pill>
               </div>
@@ -978,7 +977,7 @@ export default function AdminPage() {
                     Controls maximum bet size relative to contract balance
                   </p>
                 </div>
-                <Pill variant="default">
+                <Pill>
                   {formatPercent(maxRewardPercent as bigint)}%
                 </Pill>
               </div>
@@ -1144,7 +1143,7 @@ export default function AdminPage() {
                     Your profit percentage on each bet
                   </p>
                 </div>
-                <Pill variant="default">
+                <Pill>
                   {formatPercent(houseEdge as bigint)}%
                 </Pill>
               </div>
@@ -1347,12 +1346,12 @@ export default function AdminPage() {
                           <span className="font-medium">{parseFloat(formatEther(bet.betAmount)).toFixed(4)} ETH</span>
                         </td>
                         <td className="py-3 px-4">
-                          <Pill variant={bet.choice === 0 ? 'default' : 'secondary'}>
+                          <Pill>
                             {bet.choice === 0 ? 'HEADS' : 'TAILS'}
                           </Pill>
                         </td>
                         <td className="py-3 px-4">
-                          <Pill variant={bet.result === 0 ? 'default' : 'secondary'}>
+                          <Pill>
                             {bet.result === 0 ? 'HEADS' : 'TAILS'}
                           </Pill>
                         </td>

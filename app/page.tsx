@@ -8,10 +8,6 @@ import Image from "next/image";
 import { toast } from 'sonner';
 import { PageLayout } from '@/components/layout/page-layout';
 import { Pill } from '@/components/ui/pill';
-// LOCAL TESTING ONLY: Wallet selector for local development
-// TODO: DELETE THIS WHEN GOING TO PRODUCTION - ONLY FOR LOCAL TESTING
-import { WalletSelector } from '@/components/wallet-selector';
-import { useWalletType } from '@/components/hybrid-wallet-provider';
 import { useSoundEffects } from '@/hooks/useSoundEffects';
 import { useWalletAnimation } from '@/hooks/useWalletAnimation';
 
@@ -96,9 +92,6 @@ function useAnimatedNumber(targetValue: number, duration: number = 600): number 
 // - Current implementation: commented out in both mobile and desktop bet history sections
 
 function CoinflipPage() {
-  // LOCAL TESTING ONLY: Wallet type selection for local development
-  // TODO: DELETE THIS WHEN GOING TO PRODUCTION - ONLY FOR LOCAL TESTING
-  const { walletType, setWalletType } = useWalletType();
   
   // Sound effects hook
   const { playWin, playLose, playButtonClick, playTabSwitch, playFlipStart } = useSoundEffects();
@@ -409,13 +402,17 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         },
       });
 
-      const receiptCommit = await publicClient.waitForTransactionReceipt({ hash: txHash });
+      const receiptCommit = await publicClient?.waitForTransactionReceipt({ hash: txHash });
+      if (!receiptCommit) {
+        throw new Error('Failed to get transaction receipt');
+      }
       const commitEvents = parseEventLogs({
         abi: coinFlipAbi,
         logs: receiptCommit.logs,
         eventName: 'FlipCommitted',
       });
-      const requestId = commitEvents[0]?.args.requestId as bigint | undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const requestId = (commitEvents[0] as any)?.args?.requestId as bigint | undefined;
       if (!requestId) {
         throw new Error('Failed to get request ID from FlipCommitted event');
       }
@@ -434,18 +431,54 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         gas: BigInt(500000),
       });
 
-      const receiptReveal = await publicClient.waitForTransactionReceipt({ hash: txHash2 });
+      const receiptReveal = await publicClient?.waitForTransactionReceipt({ hash: txHash2 });
+      if (!receiptReveal) {
+        throw new Error('Failed to get reveal transaction receipt');
+      }
       const revealEvents = parseEventLogs({
         abi: coinFlipAbi,
         logs: receiptReveal.logs,
         eventName: 'FlipRevealed',
       });
-      const latestReveal = revealEvents[0];
-      const result = latestReveal?.args.result as number | undefined;
-      const didWin = latestReveal?.args.didWin as boolean | undefined;
-      const payout = latestReveal?.args.payout as bigint | undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const latestReveal = revealEvents[0] as any;
+      const result = latestReveal?.args?.result as number | undefined;
+      const didWin = latestReveal?.args?.didWin as boolean | undefined;
+      const payout = latestReveal?.args?.payout as bigint | undefined;
 
+      // STEP 1: Dismiss transaction toast and start the reveal animation
       toast.dismiss('flip-transaction');
+      
+      // STEP 2: Set the result and start the deceleration animation (coin slows down)
+      setIsFlipping(false);
+      setIsRevealing(true);
+      setFlipResult(result !== undefined ? (result === 0 ? 'Heads' : 'Tails') : null);
+      
+      // Show "Revealing..." toast while coin decelerates
+      toast.loading('Revealing result...', {
+        id: 'reveal-animation',
+        duration: Infinity,
+        className: 'text-xl font-bold',
+        style: {
+          background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(16, 185, 129, 0.15) 100%)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '2px solid transparent',
+          backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #8b5cf6, #10b981)',
+          backgroundOrigin: 'border-box',
+          backgroundClip: 'padding-box, border-box',
+          color: '#ffffff',
+          padding: '20px 24px',
+          fontSize: '18px',
+          boxShadow: '0 8px 32px rgba(139, 92, 246, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        },
+      });
+
+      // STEP 3: Wait for the reveal animation to complete (3 seconds - coin decelerates and lands)
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // STEP 4: NOW the coin has landed! Show win/lose celebration
+      toast.dismiss('reveal-animation');
       toast.success('Flip completed!', {
         className: 'text-xl font-bold',
         description: didWin ? 'Congratulations! You won the flip!' : 'Better luck next time!',
@@ -471,18 +504,30 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         },
       });
 
+      // Trigger win/lose effects AFTER coin has landed
       if (didWin) {
         playWin();
-        triggerWinAnimation();
+        triggerWinAnimation(payout ? formatEther(payout) : '0');
         setShowWinCelebration(true);
+
+        // Auto-hide win celebration after 3 seconds
+        setTimeout(() => {
+          setShowWinCelebration(false);
+        }, 3000);
       } else {
         playLose();
         setShowLoseCelebration(true);
+
+        // Auto-hide lose celebration after 3 seconds
+        setTimeout(() => {
+          setShowLoseCelebration(false);
+        }, 3000);
       }
 
-      setIsFlipping(false);
-      setIsRevealing(true);
-      setFlipResult(result !== undefined ? (result === 0 ? 'Heads' : 'Tails') : null);
+      // Reset revealing state after celebration completes (3 more seconds)
+      setTimeout(() => {
+        setIsRevealing(false);
+      }, 3000);
 
       memoizedRefetchStats();
       refetchBalance();
@@ -496,9 +541,19 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
       }
 
       const requestIdReveal = latestReveal?.args.requestId as bigint | undefined;
-      if (requestIdReveal) {
-        const timestamp = getBestTimestamp(requestIdReveal.toString());
-        setTimestampInCache(requestIdReveal.toString(), timestamp);
+      if (requestIdReveal && receiptReveal.blockNumber !== undefined) {
+        const revealBlock = await publicClient?.getBlock({ blockNumber: receiptReveal.blockNumber });
+        if (revealBlock) {
+          const blockTimestamp = Number(revealBlock.timestamp);
+          const latestBlockNumber = revealBlock.number;
+          const timestamp = getBestTimestamp(
+            requestIdReveal.toString(),
+            blockTimestamp,
+            revealBlock.number,
+            latestBlockNumber
+          );
+          setTimestampInCache(requestIdReveal.toString(), timestamp);
+        }
       }
     } catch (error) {
       console.error('Flip transaction failed:', error);
@@ -575,45 +630,6 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
 
   return (
     <PageLayout>
-      {/* LOCAL TESTING ONLY: Wallet selector for local development */}
-      {/* TODO: DELETE THIS WHEN GOING TO PRODUCTION - ONLY FOR LOCAL TESTING */}
-      <div className="fixed bottom-4 left-4 z-50 flex flex-col gap-2">
-        <WalletSelector
-          currentWalletType={walletType}
-          onWalletTypeChange={setWalletType}
-          className="bg-black/90 backdrop-blur-sm border border-white/30 shadow-xl"
-        />
-        
-        {/* Network status indicator - only render after mount to prevent hydration mismatch */}
-        {hasMounted && isConnected && (
-          <div className={`px-3 py-2 rounded-lg text-xs font-medium bg-black/90 backdrop-blur-sm border shadow-xl ${
-            chain?.id === EXPECTED_CHAIN_ID 
-              ? 'border-emerald-500/50 text-emerald-400' 
-              : 'border-amber-500/50 text-amber-400'
-          }`}>
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${
-                chain?.id === EXPECTED_CHAIN_ID ? 'bg-emerald-500' : 'bg-amber-500'
-              }`} />
-              <span>
-                {chain?.id === EXPECTED_CHAIN_ID 
-                  ? `Connected: ${chain?.name ?? network.label}` 
-                  : `Wrong Network (ID: ${chain?.id || 'Unknown'})`
-                }
-              </span>
-            </div>
-            {chain?.id !== EXPECTED_CHAIN_ID && (
-              <button
-                onClick={() => switchChain({ chainId: EXPECTED_CHAIN_ID })}
-                className="mt-2 w-full px-2 py-1 text-xs bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 rounded transition-colors"
-              >
-                Switch to {network.label}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-      
       <main className="relative z-10 mx-auto w-full px-fluid-3 md:px-fluid-4 lg:px-fluid-6 xl:px-fluid-8 py-fluid-2 md:py-fluid-3 lg:py-fluid-4 grid grid-cols-12 gap-fluid-4 lg:gap-fluid-6 flex-1" style={{ maxWidth: 'min(98vw, var(--container-3xl))' }}>
         {/* Main game panel - appears first on mobile, second on desktop */}
         <section className="col-span-12 md:col-span-8 lg:col-span-8 xl:col-span-8 order-1 md:order-2">
@@ -971,8 +987,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
               {hasMounted && process.env.NODE_ENV === 'development' && (
                 <div className="hidden md:block mb-2 text-xs text-neutral-400 text-center">
                   {address ? `Connected: ${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'} | 
-                  Chain: {chain?.id || 'Unknown'} | 
-                  Type: {walletType}
+                  Chain: {chain?.id || 'Unknown'}
                 </div>
               )}
               

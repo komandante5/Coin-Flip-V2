@@ -1,8 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-// LOCAL TESTING ONLY: Using hybrid wallet provider for local development
-// TODO: SWITCH BACK TO NextAbstractWalletProvider WHEN GOING TO PRODUCTION
-import { HybridWalletProvider } from "../src/components/hybrid-wallet-provider";
+import { RainbowKitWrapper } from "../src/components/rainbowkit-wrapper";
 import { Toaster } from "../src/components/ui/sonner";
 
 export const metadata: Metadata = {
@@ -28,12 +26,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <HybridWalletProvider>
+      <RainbowKitWrapper>
         <body suppressHydrationWarning>
           {children}
           <Toaster />
         </body>
-      </HybridWalletProvider>
+      </RainbowKitWrapper>
     </html>
   );
 }

@@ -12,14 +12,8 @@ const network = getSelectedNetwork();
 const coinFlipAddress = deployments.coinFlip;
 
 function OnchainPageComponent() {
-  const explorerBase = useMemo(() => {
-    const host = network.explorerBaseUrl ?? network.chain.blockExplorers?.default?.url ?? 'https://explorer.abs.xyz';
-    return host.replace(/\/$/, '');
-  }, []);
-
-  // TODO: Replace with production explorer link once live contract is deployed
-  const contractUrl = `${explorerBase}/address/${coinFlipAddress}`;
-  const vrngUrl = `https://docs.abstract.money/build/vrng`; // Abstract vRNG/VRF docs
+  const contractUrl = `https://sepolia.abscan.org/address/${coinFlipAddress}`;
+  const vrngUrl = `https://proofofplay.com/resources/onchain-vrf-optimized-for-gaming`; // Proof of Play vRNG
 
   return (
     <PageLayout>
@@ -56,11 +50,11 @@ function OnchainPageComponent() {
               <h2 className="text-fluid-xl lg:text-fluid-2xl font-semibold">Provably Fair Randomness</h2>
             </div>
             <p className="mt-fluid-2 text-neutral-400 text-fluid-sm">
-              Results are generated via verifiable randomness on Abstract (vRNG/VRF).
+              Results are generated via Proof of Play's custom vRNG solution, optimized for gaming.
               Every outcome is reproducible on‑chain and can be audited by anyone.
             </p>
             <Link href={vrngUrl} target="_blank" className="mt-fluid-5 inline-flex items-center gap-fluid-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] transition-all duration-200 border border-white/10 px-fluid-4 py-fluid-3 text-fluid-sm group">
-              Learn how vRNG works
+              Learn about Proof of Play vRNG
               <ExternalLink className="h-4 w-4 group-hover:translate-x-0.5 group-hover:translate-y-[-0.5px] transition-transform duration-200" />
             </Link>
           </div>
