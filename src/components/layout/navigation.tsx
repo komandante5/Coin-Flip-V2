@@ -3,9 +3,7 @@
 import { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAccount } from 'wagmi';
-// LOCAL TESTING ONLY: Using unified connect wallet button for local development
-// TODO: SWITCH BACK TO ConnectWalletButton WHEN GOING TO PRODUCTION
-import { UnifiedConnectWalletButton } from '@/components/unified-connect-wallet-button';
+import { ModernConnectWalletButton } from '@/components/modern-connect-wallet-button';
 import { Menu, X, Coins, Trophy, Gift, Activity, Shield } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -115,9 +113,7 @@ function NavigationComponent() {
             </button>
           </div>
 
-          <div className="scale-90 origin-right">
-            <UnifiedConnectWalletButton showWalletSelector={false} />
-          </div>
+          <ModernConnectWalletButton />
         </div>
 
         {/* Desktop Layout */}
@@ -153,7 +149,7 @@ function NavigationComponent() {
           </nav>
 
           <div className="ml-auto">
-            <UnifiedConnectWalletButton showWalletSelector={false} />
+            <ModernConnectWalletButton />
           </div>
         </div>
       </div>

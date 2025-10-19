@@ -59,8 +59,8 @@ function AnimatedBalanceComponent({ value, symbol = 'ETH', className }: Animated
   const chars = displayValue.split('');
 
   return (
-    <div className={cn("inline-flex items-center gap-1 font-mono", className)}>
-      <div className="flex">
+    <div className={cn("inline-flex items-center gap-0.5 font-mono", className)}>
+      <div className="flex text-emerald-300 text-[11px] md:text-xs font-medium">
         {chars.map((char, index) => (
           <div
             key={`${index}-${char}`}
@@ -78,7 +78,7 @@ function AnimatedBalanceComponent({ value, symbol = 'ETH', className }: Animated
         ))}
       </div>
       {symbol && (
-        <span className="ml-1 opacity-90">
+        <span className="ml-0.5 text-[10px] md:text-[11px] font-medium text-emerald-400/70">
           {symbol}
         </span>
       )}

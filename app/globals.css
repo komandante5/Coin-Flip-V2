@@ -158,6 +158,20 @@
     will-change: transform;
   }
   
+  /* Subtle pulse animation for wallet buttons - professional and sleek */
+  @keyframes pulse-subtle {
+    0%, 100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 0.8;
+    }
+  }
+  
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
   /* Optimized scrollbar styles for better performance */
   .custom-scrollbar {
     scrollbar-width: thin;
