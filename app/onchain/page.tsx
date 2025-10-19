@@ -1,14 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, memo } from 'react';
+import { memo } from 'react';
 import { ExternalLink, ShieldCheck, ScrollText } from 'lucide-react';
 import { PageLayout } from '@/components/layout/page-layout';
 import { getDeployments } from '@/config/deployments';
-import { getSelectedNetwork } from '@/config/networks';
-
 const deployments = getDeployments();
-const network = getSelectedNetwork();
 const coinFlipAddress = deployments.coinFlip;
 
 function OnchainPageComponent() {
@@ -50,7 +47,7 @@ function OnchainPageComponent() {
               <h2 className="text-fluid-xl lg:text-fluid-2xl font-semibold">Provably Fair Randomness</h2>
             </div>
             <p className="mt-fluid-2 text-neutral-400 text-fluid-sm">
-              Results are generated via Proof of Play's custom vRNG solution, optimized for gaming.
+              Results are generated via Proof of Play&apos;s custom vRNG solution, optimized for gaming.
               Every outcome is reproducible on‑chain and can be audited by anyone.
             </p>
             <Link href={vrngUrl} target="_blank" className="mt-fluid-5 inline-flex items-center gap-fluid-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] transition-all duration-200 border border-white/10 px-fluid-4 py-fluid-3 text-fluid-sm group">

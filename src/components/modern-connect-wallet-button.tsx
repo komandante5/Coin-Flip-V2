@@ -3,13 +3,12 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useBalance } from 'wagmi';
 import { useState, useEffect, memo } from 'react';
-import { useSoundEffects } from '@/hooks/useSoundEffects';
 import { useWalletAnimation } from '@/hooks/useWalletAnimation';
 import { AnimatedBalance } from '@/components/ui/animated-balance';
 import { cn } from '@/lib/utils';
 import { type ClassValue } from 'clsx';
 import Image from 'next/image';
-import { Wallet, ChevronDown, Zap, AlertCircle } from 'lucide-react';
+import { Wallet, ChevronDown, AlertCircle } from 'lucide-react';
 
 interface ModernConnectWalletButtonProps {
   className?: ClassValue;

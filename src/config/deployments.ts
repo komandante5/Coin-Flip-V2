@@ -4,6 +4,7 @@ import { getDeploymentsFile, getSelectedNetwork } from "@/config/networks";
 import abstractMainnetDeployments from "@/deployments.abstractMainnet.json";
 import abstractTestnetDeployments from "@/deployments.abstractTestnet.json";
 import localhostDeployments from "@/deployments.localhost.json";
+import inMemoryNodeDeployments from "@/deployments.inMemoryNode.json";
 
 export type DeploymentAddresses = {
   network: string;
@@ -17,7 +18,7 @@ const deploymentMap: Record<string, DeploymentAddresses> = {
   "abstractMainnet.json": abstractMainnetDeployments as DeploymentAddresses,
   "abstractTestnet.json": abstractTestnetDeployments as DeploymentAddresses,
   "localhost.json": localhostDeployments as DeploymentAddresses,
-  "inMemoryNode.json": localhostDeployments as DeploymentAddresses, // Use localhost for local testing
+  "inMemoryNode.json": inMemoryNodeDeployments as DeploymentAddresses,
 };
 
 export function getDeployments(): DeploymentAddresses {
