@@ -1,6 +1,8 @@
 import { createPublicClient, createWalletClient, http } from "viem";
 import { eip712WalletActions, publicActionsL2 } from "viem/zksync";
-import { chain } from "./chain";
+import { getSelectedNetwork } from "@/config/networks";
+
+const network = getSelectedNetwork();
 
 /**
  * Viem specific extensions for ZK Stack chains (i.e., Abstract)
@@ -9,12 +11,12 @@ import { chain } from "./chain";
 
 // Global Viem public client instance
 export const publicClient = createPublicClient({
-  chain: chain,
-  transport: http(),
+  chain: network.chain,
+  transport: http(network.rpcUrl),
 }).extend(publicActionsL2());
 
 // Global Viem wallet client instance
 export const walletClient = createWalletClient({
-  chain: chain,
-  transport: http(),
+  chain: network.chain,
+  transport: http(network.rpcUrl),
 }).extend(eip712WalletActions());

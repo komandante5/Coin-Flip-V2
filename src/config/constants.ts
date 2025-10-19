@@ -2,6 +2,10 @@
  * Application constants
  */
 
+import { getSelectedNetwork } from "@/config/networks";
+
+const selectedNetwork = getSelectedNetwork();
+
 // Default bet amounts
 export const DEFAULT_BET_AMOUNT = "0.01";
 export const DEFAULT_MIN_BET = 0.01;
@@ -16,7 +20,7 @@ export const QUICK_BET_PRESETS = [
 ];
 
 // Network configuration
-export const EXPECTED_CHAIN_ID = 260; // anvilZkSync
+export const EXPECTED_CHAIN_ID = selectedNetwork.chain.id;
 
 // Animation durations (in milliseconds)
 export const ANIMATION_DURATIONS = {

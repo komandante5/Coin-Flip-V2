@@ -38,6 +38,7 @@ module.exports = {
       ethNetwork: "sepolia",
       zksync: true,
       chainId: 11124,
+      verifyURL: "https://api-sepolia.abscan.org/api",
       accounts,
     },
     abstractMainnet: {
@@ -45,6 +46,7 @@ module.exports = {
       ethNetwork: "mainnet",
       zksync: true,
       chainId: 2741,
+      verifyURL: "https://api.abscan.org/api",
       accounts,
     },
     inMemoryNode: {
@@ -110,6 +112,30 @@ module.exports = {
       chainId: 999,
       accounts,
     },
+  },
+  etherscan: {
+    apiKey: {
+      abstractTestnet: process.env.ETHERSCAN_API_KEY || "M1PREVWCQ1H8M7U4VMGPBYRU4PX2Q7ES4H",
+      abstractMainnet: process.env.ETHERSCAN_API_KEY || "M1PREVWCQ1H8M7U4VMGPBYRU4PX2Q7ES4H",
+    },
+    customChains: [
+      {
+        network: "abstractTestnet",
+        chainId: 11124,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=11124",
+          browserURL: "https://sepolia.abscan.org",
+        },
+      },
+      {
+        network: "abstractMainnet",
+        chainId: 2741,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=2741",
+          browserURL: "https://abscan.org",
+        },
+      },
+    ],
   },
   solidity: { version: "0.8.28" },
 };

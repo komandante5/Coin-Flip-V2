@@ -1,5 +1,5 @@
-import { abstractTestnet } from "viem/chains";
 import { defineChain } from "viem";
+import { getChain } from "@/config/networks";
 
 // LOCAL TESTING ONLY: Define anvil-zksync chain for local development
 // TODO: DELETE THIS WHEN GOING TO PRODUCTION - ONLY FOR LOCAL TESTING
@@ -14,7 +14,4 @@ export const anvilZkSync = defineChain({
   }
 });
 
-export const chain =
-  process.env.NODE_ENV === "development"
-    ? anvilZkSync // Local development: Use local anvil-zksync
-    : abstractTestnet; // Production: Use Abstract Testnet (change to mainnet when ready)
+export const chain = getChain();
