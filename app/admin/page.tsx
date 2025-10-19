@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt, useReadContract, useBalance } from 'wagmi';
 import { useQueryClient } from '@tanstack/react-query';
 import { parseEther, formatEther, parseAbiItem, type Abi } from 'viem';
@@ -23,14 +23,14 @@ import {
   X
 } from "lucide-react";
 
+import { getDeployments } from '@/config/deployments';
 import coinFlipJson from '@/abi/CoinFlip.json';
-import addresses from '@/deployments.localhost.json';
 import { formatAddress } from '@/lib/format-utils';
-import { formatTimeAgo, setTimestampInCache, getCachedTimestamp } from '@/lib/timestamp-utils';
 
+const deployments = getDeployments();
+const coinFlipAddress = deployments.coinFlip;
+const ownerAddress = deployments.owner;
 const coinFlipAbi = coinFlipJson.abi as Abi;
-const coinFlipAddress = (addresses as any).coinFlip as `0x${string}`;
-const ownerAddress = (addresses as any).owner as `0x${string}`;
 
 interface AdminStats {
   totalBetsAmount: bigint;
@@ -87,7 +87,7 @@ export default function AdminPage() {
   const [newMinBet, setNewMinBet] = useState('');
   const [newMaxRewardPercent, setNewMaxRewardPercent] = useState('');
   const [newHouseEdge, setNewHouseEdge] = useState('');
-  const [currentToastId, setCurrentToastId] = useState<string | number | undefined>();
+  const toastIdRef = useRef<string | number | undefined>(undefined);
   const [transactionStatus, setTransactionStatus] = useState<string>('');
   const [showMinBetInfo, setShowMinBetInfo] = useState(false);
   const [showMaxPayoutInfo, setShowMaxPayoutInfo] = useState(false);
@@ -116,7 +116,7 @@ export default function AdminPage() {
     refetch: refetchContractBalanceTracked 
   } = useReadContract({
     address: coinFlipAddress,
-    abi: coinFlipAbi,
+    abi: coinFlipJson.abi,
     functionName: 'contractBalance',
   });
 
@@ -125,7 +125,7 @@ export default function AdminPage() {
     refetch: refetchMinBet 
   } = useReadContract({
     address: coinFlipAddress,
-    abi: coinFlipAbi,
+    abi: coinFlipJson.abi,
     functionName: 'minBet',
   });
 
@@ -134,7 +134,7 @@ export default function AdminPage() {
     refetch: refetchMaxRewardPercent 
   } = useReadContract({
     address: coinFlipAddress,
-    abi: coinFlipAbi,
+    abi: coinFlipJson.abi,
     functionName: 'maxRewardPercent',
   });
 
@@ -143,7 +143,7 @@ export default function AdminPage() {
     refetch: refetchHouseEdge 
   } = useReadContract({
     address: coinFlipAddress,
-    abi: coinFlipAbi,
+    abi: coinFlipJson.abi,
     functionName: 'houseEdge',
   });
 
@@ -320,7 +320,7 @@ export default function AdminPage() {
       setTimeout(() => {
         resetWriteContract();
         setTransactionStatus('');
-        setCurrentToastId(undefined);
+        toastIdRef.current = undefined;
       }, 2500);
     }
   }, [
@@ -369,15 +369,16 @@ export default function AdminPage() {
       const toastId = toast.loading('Depositing Funds', {
         description: `Sending ${amount} ETH to contract...`,
       });
-      setCurrentToastId(toastId);
-    } catch (error: any) {
+      toastIdRef.current = toastId;
+    } catch (error: unknown) {
       console.error('Deposit error:', error);
       toast.dismiss(); // Dismiss any loading toasts
+      const message = error instanceof Error ? error.message : 'Failed to deposit funds';
       toast.error('Transaction Failed', {
-        description: error.message || 'Failed to deposit funds',
+        description: message,
       });
       setTransactionStatus('');
-      setCurrentToastId(undefined);
+      toastIdRef.current = undefined;
     }
   };
 
@@ -414,15 +415,16 @@ export default function AdminPage() {
       const toastId = toast.loading('Withdrawing Funds', {
         description: `Withdrawing ${amount} ETH from contract...`,
       });
-      setCurrentToastId(toastId);
-    } catch (error: any) {
+      toastIdRef.current = toastId;
+    } catch (error: unknown) {
       console.error('Withdrawal error:', error);
       toast.dismiss(); // Dismiss any loading toasts
+      const message = error instanceof Error ? error.message : 'Failed to withdraw funds';
       toast.error('Transaction Failed', {
-        description: error.message || 'Failed to withdraw funds',
+        description: message,
       });
       setTransactionStatus('');
-      setCurrentToastId(undefined);
+      toastIdRef.current = undefined;
     }
   };
 
@@ -442,15 +444,16 @@ export default function AdminPage() {
       const toastId = toast.loading('Emergency Withdrawal', {
         description: 'Withdrawing all funds from contract...',
       });
-      setCurrentToastId(toastId);
-    } catch (error: any) {
+      toastIdRef.current = toastId;
+    } catch (error: unknown) {
       console.error('Emergency withdrawal error:', error);
       toast.dismiss(); // Dismiss any loading toasts
+      const message = error instanceof Error ? error.message : 'Failed to execute emergency withdrawal';
       toast.error('Emergency Withdrawal Failed', {
-        description: error.message || 'Failed to execute emergency withdrawal',
+        description: message,
       });
       setTransactionStatus('');
-      setCurrentToastId(undefined);
+      toastIdRef.current = undefined;
     }
   };
 
@@ -478,15 +481,16 @@ export default function AdminPage() {
       const toastId = toast.loading('Updating Min Bet', {
         description: `Setting minimum bet to ${amount} ETH...`,
       });
-      setCurrentToastId(toastId);
-    } catch (error: any) {
+      toastIdRef.current = toastId;
+    } catch (error: unknown) {
       console.error('Update min bet error:', error);
       toast.dismiss(); // Dismiss any loading toasts
+      const message = error instanceof Error ? error.message : 'Failed to update minimum bet';
       toast.error('Update Failed', {
-        description: error.message || 'Failed to update minimum bet',
+        description: message,
       });
       setTransactionStatus('');
-      setCurrentToastId(undefined);
+      toastIdRef.current = undefined;
     }
   };
 
@@ -523,15 +527,16 @@ export default function AdminPage() {
       const toastId = toast.loading('Updating Max Reward', {
         description: `Setting max reward to ${percentValue}%...`,
       });
-      setCurrentToastId(toastId);
-    } catch (error: any) {
+      toastIdRef.current = toastId;
+    } catch (error: unknown) {
       console.error('Update max reward error:', error);
       toast.dismiss(); // Dismiss any loading toasts
+      const message = error instanceof Error ? error.message : 'Failed to update max reward percentage';
       toast.error('Update Failed', {
-        description: error.message || 'Failed to update max reward percentage',
+        description: message,
       });
       setTransactionStatus('');
-      setCurrentToastId(undefined);
+      toastIdRef.current = undefined;
     }
   };
 
@@ -568,15 +573,16 @@ export default function AdminPage() {
       const toastId = toast.loading('Updating House Edge', {
         description: `Setting house edge to ${percentValue}%...`,
       });
-      setCurrentToastId(toastId);
-    } catch (error: any) {
+      toastIdRef.current = toastId;
+    } catch (error: unknown) {
       console.error('Update house edge error:', error);
       toast.dismiss(); // Dismiss any loading toasts
+      const message = error instanceof Error ? error.message : 'Failed to update house edge';
       toast.error('Update Failed', {
-        description: error.message || 'Failed to update house edge',
+        description: message,
       });
       setTransactionStatus('');
-      setCurrentToastId(undefined);
+      toastIdRef.current = undefined;
     }
   };
 
@@ -859,7 +865,7 @@ export default function AdminPage() {
                         <p className="text-sm font-medium text-blue-400 mb-2">What this controls:</p>
                         <p className="text-sm text-muted-foreground">
                           Sets the minimum bet amount required to play. This prevents spam and very small bets 
-                          that aren't economically viable due to gas costs.
+                          that aren&apos;t economically viable due to gas costs.
                         </p>
                       </div>
 
@@ -1041,7 +1047,7 @@ export default function AdminPage() {
                       <div className="bg-muted/50 rounded-lg p-3">
                         <p className="text-xs font-medium mb-1">💡 Pro Tip:</p>
                         <p className="text-xs text-muted-foreground">
-                          Monitor your house profit regularly. If you're consistently winning, 
+                          Monitor your house profit regularly. If you&apos;re consistently winning, 
                           you can afford to increase this percentage. If losing, consider reducing it.
                         </p>
                       </div>

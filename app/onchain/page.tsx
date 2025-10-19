@@ -4,17 +4,16 @@ import Link from 'next/link';
 import { useMemo, memo } from 'react';
 import { ExternalLink, ShieldCheck, ScrollText } from 'lucide-react';
 import { PageLayout } from '@/components/layout/page-layout';
-import addresses from '../../src/deployments.localhost.json';
-import { chain } from '../../src/config/chain';
+import { getDeployments } from '@/config/deployments';
+import { getSelectedNetwork } from '@/config/networks';
 
-const coinFlipAddress = (addresses as any).coinFlip as `0x${string}`;
+const deployments = getDeployments();
+const network = getSelectedNetwork();
+const coinFlipAddress = deployments.coinFlip;
 
 function OnchainPageComponent() {
   const explorerBase = useMemo(() => {
-    // Abstract explorers follow Etherscan-like paths on testnet
-    // For local dev we link to placeholder docs.
-      // TODO: Replace with production explorer link once live contract is deployed
-    const host = (chain as any)?.blockExplorers?.default?.url ?? 'https://explorer.abs.xyz';
+    const host = network.explorerBaseUrl ?? network.chain.blockExplorers?.default?.url ?? 'https://explorer.abs.xyz';
     return host.replace(/\/$/, '');
   }, []);
 

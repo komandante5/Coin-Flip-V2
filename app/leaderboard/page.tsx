@@ -4,16 +4,17 @@ import { useEffect, useMemo, useState, useCallback, memo } from 'react';
 import Link from 'next/link';
 import { usePublicClient, useAccount, useBalance } from 'wagmi';
 import { formatEther, parseAbiItem } from 'viem';
-import { Crown, TrendingUp, Flame, Zap, Trophy, DollarSign, Target, Activity, ArrowRight, TrendingDown, Sparkles, ChevronRight } from 'lucide-react';
+import { Crown, TrendingUp, Flame, Zap, Trophy, DollarSign, Target, Activity, ArrowRight, TrendingDown, ChevronRight } from 'lucide-react';
 import { PageLayout } from '@/components/layout/page-layout';
-import addresses from '../../src/deployments.localhost.json';
+import { getDeployments } from '@/config/deployments';
 
-import type { PlayerStats, FlipEvent } from '@/types/coinflip';
+import type { FlipEvent } from '@/types/coinflip';
 import { LEADERBOARD_CONFIG, MAX_RECENT_FLIPS } from '@/config/constants';
 import { formatAddress } from '@/lib/format-utils';
 import { formatTimeAgo, setTimestampInCache, getCachedTimestamp } from '@/lib/timestamp-utils';
 
-const coinFlipAddress = (addresses as any).coinFlip as `0x${string}`;
+const deployments = getDeployments();
+const coinFlipAddress = deployments.coinFlip;
 
 // Utility function for better performance
 const formatEth = (value: bigint) => {
@@ -73,7 +74,6 @@ function LeaderboardPage() {
   const [loading, setLoading] = useState(false);
   const [liveFlips, setLiveFlips] = useState<FlipEvent[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<'profit' | 'volume' | 'bigWin' | 'streak'>('profit');
-  const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'week'>('all');
 
   // Get contract balance (bankroll)
   const { data: contractBalance } = useBalance({

@@ -1,6 +1,5 @@
 "use client";
 
-import { AbstractWalletProvider } from "@abstract-foundation/agw-react";
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, createContext, useContext, ReactNode, useMemo } from "react";
@@ -64,7 +63,6 @@ export function HybridWalletProvider({ children }: HybridWalletProviderProps) {
     const currentChainId = chain.id;
     const supported = supportedChainIds.includes(currentChainId);
     if (!supported) {
-      // eslint-disable-next-line no-console
       console.log(`Chain ${currentChainId} not supported by Abstract Global Wallet, using classic wallets`);
     }
     return supported;

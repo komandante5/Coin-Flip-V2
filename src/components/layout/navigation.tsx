@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAccount } from 'wagmi';
 // LOCAL TESTING ONLY: Using unified connect wallet button for local development
@@ -10,7 +10,7 @@ import { Menu, X, Coins, Trophy, Gift, Activity, Shield } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSoundEffects } from '@/hooks/useSoundEffects';
-import addresses from '@/deployments.localhost.json';
+import { getDeployments } from '@/config/deployments';
 
 const baseNavigationItems = [
   { label: "Coinflip", href: "/", icon: Coins },
@@ -21,7 +21,7 @@ const baseNavigationItems = [
 
 const adminNavigationItem = { label: "Admin", href: "/admin", icon: Shield };
 
-const ownerAddress = (addresses as any).owner as string;
+const ownerAddress = getDeployments().owner as string;
 
 function NavigationComponent() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -35,9 +35,8 @@ function NavigationComponent() {
   
   const headerRef = useRef<HTMLElement | null>(null);
 
-  // Check if connected wallet is the owner
-  const isOwner = connectedAddress && ownerAddress && 
-    connectedAddress.toLowerCase() === ownerAddress.toLowerCase();
+  const deploymentOwner = useMemo(() => ownerAddress?.toLowerCase?.() ?? '', []);
+  const isOwner = connectedAddress && deploymentOwner && connectedAddress.toLowerCase() === deploymentOwner;
 
   // Navigation items with conditional admin link
   const navigationItems = isOwner 

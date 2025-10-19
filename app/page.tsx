@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, useCallback, memo } from "react";
+import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { useWriteContract, usePublicClient, useReadContract, useAccount, useSwitchChain, useBalance } from 'wagmi';
 import { parseEther, parseEventLogs, formatEther, type Abi, parseAbiItem } from 'viem';
 import { ChevronRight, Sparkles } from "lucide-react";
@@ -15,16 +15,16 @@ import { useWalletType } from '@/components/hybrid-wallet-provider';
 import { useSoundEffects } from '@/hooks/useSoundEffects';
 import { useWalletAnimation } from '@/hooks/useWalletAnimation';
 
-import coinFlipJson from '../src/abi/CoinFlip.json';
-import mockVrfJson from '../src/abi/MockVRF.json';
-import addresses from '../src/deployments.localhost.json';
+import coinFlipJson from '@/abi/CoinFlip.json';
+import mockVrfJson from '@/abi/MockVRF.json';
+import { getDeployments } from '@/config/deployments';
+import { getSelectedNetwork } from '@/config/networks';
 
 // Import types and utilities
 import type { CoinSide, FlipEvent, GameStatsArray } from '@/types/coinflip';
 import { 
   DEFAULT_BET_AMOUNT, 
   EXPECTED_CHAIN_ID, 
-  ANIMATION_DURATIONS, 
   POLLING_INTERVALS,
   CACHE_CONFIG,
   QUICK_BET_PRESETS,
@@ -35,16 +35,18 @@ import {
 import { 
   setTimestampInCache, 
   getCachedTimestamp, 
-  getBestTimestamp,
-  formatTimeAgo 
+  getBestTimestamp
 } from '@/lib/timestamp-utils';
 import { formatAddress } from '@/lib/format-utils';
+
+const deployments = getDeployments();
+const network = getSelectedNetwork();
 
 const coinFlipAbi = coinFlipJson.abi as Abi;
 const mockVrfAbi = mockVrfJson.abi as Abi;
 
-const coinFlipAddress = (addresses as any).coinFlip as `0x${string}`;
-const mockVrfAddress = (addresses as any).mockVRF as `0x${string}`;
+const coinFlipAddress = deployments.coinFlip;
+const mockVrfAddress = deployments.mockVRF;
 
 // Custom hook for animated number counter
 function useAnimatedNumber(targetValue: number, duration: number = 600): number {
@@ -60,8 +62,6 @@ function useAnimatedNumber(targetValue: number, duration: number = 600): number 
     
     // Calculate step size based on difference magnitude
     // Larger differences = more steps per frame for smoother animation
-    const steps = Math.min(Math.abs(difference) * 10, 100);
-    const stepDuration = duration / steps;
 
     const animate = () => {
       const elapsed = Date.now() - startTime;
@@ -101,7 +101,7 @@ function CoinflipPage() {
   const { walletType, setWalletType } = useWalletType();
   
   // Sound effects hook
-  const { playWin, playLose, playButtonClick, playTabSwitch, playError, playFlipStart } = useSoundEffects();
+  const { playWin, playLose, playButtonClick, playTabSwitch, playFlipStart } = useSoundEffects();
   
   // Wallet animation hook
   const { triggerWinAnimation, triggerBalanceRefetch } = useWalletAnimation();
@@ -109,19 +109,17 @@ function CoinflipPage() {
   // Avoid hydration mismatches by deferring client-only state
   const [hasMounted, setHasMounted] = useState(false);
 
-  const [selected, setSelected] = useState<CoinSide>('Heads');
   const [selectedForUI, setSelectedForUI] = useState<CoinSide>('Heads');
+  const [selected, setSelected] = useState<CoinSide>('Heads');
   const [amount, setAmount] = useState<string>(DEFAULT_BET_AMOUNT);
   const [isFlipping, setIsFlipping] = useState(false);
   const [isRevealing, setIsRevealing] = useState(false);
-  const [flipResult, setFlipResult] = useState<CoinSide | null>(null);
   const [currentRotation, setCurrentRotation] = useState(0);
-  const [revealAnimation, setRevealAnimation] = useState<string>('');
   const [showWinCelebration, setShowWinCelebration] = useState(false);
   const [showLoseCelebration, setShowLoseCelebration] = useState(false);
+  const [flipResult, setFlipResult] = useState<CoinSide | null>(null);
   const [recentFlips, setRecentFlips] = useState<FlipEvent[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'mine'>('all');
-  const contentWrapperRef = useRef<HTMLDivElement | null>(null);
   const [newBetIndices, setNewBetIndices] = useState<Set<number>>(new Set());
   const [betValidationError, setBetValidationError] = useState<string | null>(null);
 
@@ -171,6 +169,16 @@ function CoinflipPage() {
   }
   return { minBet: DEFAULT_MIN_BET, maxBet: DEFAULT_MAX_BET, payoutMultiplier: 1.98 };
 }, [gameStats]);
+
+  // Compute reveal animation based on selected side and flip result
+  const revealAnimation = useMemo(() => {
+    if (!isRevealing || !flipResult) return '';
+    
+    const from = selected === 'Heads' ? 'heads' : 'tails';
+    const to = flipResult === 'Heads' ? 'heads' : 'tails';
+    
+    return `animate-reveal-${from}-to-${to}`;
+  }, [isRevealing, flipResult, selected]);
 
   // Validate bet amount and show appropriate error message
   useEffect(() => {
@@ -237,7 +245,7 @@ function CoinflipPage() {
         const commitLog = recentCommits[i];
         const block = await publicClient.getBlock({ blockNumber: commitLog.blockNumber });
         // Match by requestId via decoded args (more robust than topic index)
-        const revealLog = revealLogs.find((r: any) => (r?.args?.requestId) === (commitLog as any)?.args?.requestId);
+        const revealLog = revealLogs.find((r: { args?: { requestId?: bigint } }) => r?.args?.requestId === (commitLog as { args?: { requestId?: bigint } })?.args?.requestId);
         
         const choiceValue = commitLog.args.choice as number;
         const resultValue = revealLog?.args?.result as number | undefined;
@@ -314,20 +322,11 @@ useEffect(() => {
 }, [memoizedRefetchStats]);
 
 const handleCoinSelection = useCallback((side: CoinSide) => {
-    // Only animate if we're actually changing sides
-    if (selectedForUI === side) return;
-    
-    // Play button click sound
     playButtonClick();
-    
-    // Immediately highlight the button for UI feedback
     setSelectedForUI(side);
     setSelected(side);
-    
-    // Animate rotation change smoothly
-    // The CSS transition on the coin container will handle the smooth rotation
     setCurrentRotation(side === 'Heads' ? 0 : 180);
-  }, [selectedForUI, playButtonClick]);
+  }, [playButtonClick]);
 
   const flip = useCallback(async () => {
     if (!address) {
@@ -335,40 +334,33 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
       alert('Please connect your wallet first');
       return;
     }
-    
+
     if (!isConnected) {
       console.error('Wallet not connected');
       alert('Please connect your wallet first');
       return;
     }
-    
-    // Check if connected to the correct network
+
     if (chain?.id !== EXPECTED_CHAIN_ID) {
-      
-      // Try to switch to the correct chain
       try {
         await switchChain({ chainId: EXPECTED_CHAIN_ID });
       } catch (error) {
         console.error('Failed to switch chain:', error);
-        alert(`Please manually switch to the Anvil ZkSync network (Chain ID: ${EXPECTED_CHAIN_ID}) in your wallet`);
+        alert(`Please manually switch to the ${network.label} network (Chain ID: ${EXPECTED_CHAIN_ID}) in your wallet`);
         return;
       }
     }
-    
-    // CRITICAL FIX: Capture selectedForUI at the moment of the button click
-    // This prevents stale closures from using old values
+
     const userChoice = selectedForUI;
     const side = userChoice === 'Heads' ? 0 : 1;
-    
-    // Phase 1: Start fast spinning immediately
-    playFlipStart(); // Play flip start sound
+
+    playFlipStart();
     setIsFlipping(true);
     setIsRevealing(false);
     setFlipResult(null);
     setShowWinCelebration(false);
     setShowLoseCelebration(false);
-    
-    // Show transaction toast with custom styling
+
     toast.loading('Confirm transaction in your wallet...', {
       id: 'flip-transaction',
       duration: Infinity,
@@ -387,19 +379,17 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         boxShadow: '0 8px 32px rgba(16, 185, 129, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
       },
     });
-    
+
     try {
-      // First transaction - coin flip commit (coin spins fast during wallet confirmation)
       const txHash = await writeContractAsync({
         address: coinFlipAddress,
         abi: coinFlipAbi,
         functionName: 'flipCoin',
         args: [side],
         value: parseEther(amount),
-        gas: BigInt(500000)
+        gas: BigInt(500000),
       });
 
-      // Transaction confirmed - start reveal process
       toast.loading('Transaction confirmed! Revealing result...', {
         id: 'flip-transaction',
         duration: Infinity,
@@ -418,210 +408,153 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
           boxShadow: '0 8px 32px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
         },
       });
-      const receiptCommit = await publicClient!.waitForTransactionReceipt({ hash: txHash });
-      
+
+      const receiptCommit = await publicClient.waitForTransactionReceipt({ hash: txHash });
       const commitEvents = parseEventLogs({
         abi: coinFlipAbi,
         logs: receiptCommit.logs,
-        eventName: 'FlipCommitted'
+        eventName: 'FlipCommitted',
       });
-      
-      const requestId = (commitEvents[0]?.args as any)?.requestId as bigint;
+      const requestId = commitEvents[0]?.args.requestId as bigint | undefined;
       if (!requestId) {
         throw new Error('Failed to get request ID from FlipCommitted event');
       }
-      
-      // Cache the current timestamp for this bet (so it shows "just now")
+
       const currentTimestamp = Math.floor(Date.now() / 1000);
       setTimestampInCache(requestId.toString(), currentTimestamp);
-      
-      // Trigger wallet balance refetch since player made a bet
       triggerBalanceRefetch();
-      
-      // Immediately fetch bet history to show the pending bet
       await fetchRecentFlips();
 
-      // Second transaction for VRF callback (still spinning fast)
       const randomNumber = BigInt(Math.floor(Math.random() * 2 ** 32));
-      
       const txHash2 = await writeContractAsync({
         address: mockVrfAddress,
         abi: mockVrfAbi,
-        functionName: 'triggerCallback',
-        args: [coinFlipAddress, requestId, randomNumber],
-        gas: BigInt(300000)
+        functionName: 'triggerCallback',  // Changed from 'fulfillRandomWords'
+        args: [coinFlipAddress, requestId, randomNumber],  // Added coinFlipAddress as first arg, removed array wrapper from randomNumber
+        gas: BigInt(500000),
       });
 
-      const receipt = await publicClient!.waitForTransactionReceipt({ hash: txHash2 });
-      
-      // Parse the result from the FlipRevealed event
+      const receiptReveal = await publicClient.waitForTransactionReceipt({ hash: txHash2 });
       const revealEvents = parseEventLogs({
         abi: coinFlipAbi,
-        logs: receipt.logs,
-        eventName: 'FlipRevealed'
+        logs: receiptReveal.logs,
+        eventName: 'FlipRevealed',
       });
-      
-      if (revealEvents.length > 0) {
-        const event = revealEvents[0].args as any;
-        const result = event.result === 0 ? 'Heads' : 'Tails';
-        const didWin = event.didWin as boolean;
-        const payout = event.payout as bigint;
-        
-        // Dismiss loading toast
-        toast.dismiss('flip-transaction');
-        
-        // Phase 2: Both transactions confirmed - start reveal animation
-        // Determine which animation to use based on starting position and result
-        // This ensures predictable, smooth animation with no sudden corrections
-        const startingSide = selected; // What coin face we're starting from
-        let animationClass = '';
-        
-        if (startingSide === 'Heads' && result === 'Heads') {
-          animationClass = 'animate-reveal-heads-to-heads';
-        } else if (startingSide === 'Heads' && result === 'Tails') {
-          animationClass = 'animate-reveal-heads-to-tails';
-        } else if (startingSide === 'Tails' && result === 'Heads') {
-          animationClass = 'animate-reveal-tails-to-heads';
-        } else { // startingSide === 'Tails' && result === 'Tails'
-          animationClass = 'animate-reveal-tails-to-tails';
-        }
-        
-        setRevealAnimation(animationClass);
-        setIsRevealing(true);
-        
-        // Set the result to be shown at 2.5 seconds into the reveal animation (coin lands on final face)
-        setTimeout(() => {
-          setFlipResult(result);
-        }, 2500);
-        
-        // Complete the animation at 3 seconds
-        setTimeout(() => {
-          setIsFlipping(false);
-          setIsRevealing(false);
-          setRevealAnimation('');
-          // Update the coin to show the actual result and keep it displayed
-          setSelected(result);
-          setFlipResult(null);
-          // Set final rotation based on result: Heads = 0°, Tails = 180°
-          // The animation already landed on the correct face, we just maintain it
-          setCurrentRotation(result === 'Heads' ? 0 : 180);
-          
-          // NOW play sounds and show result toasts AFTER coin animation completes
-          if (didWin) {
-            playWin(); // Play win sound AFTER coin lands
-            toast.success(`🎉 You won ${Number(formatEther(payout)).toFixed(4)} ETH!`, {
-              duration: 5000,
-              className: 'text-2xl font-black',
-              style: {
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.15) 100%)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                border: '3px solid transparent',
-                backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.9), rgba(12, 15, 16, 0.9)), linear-gradient(135deg, #10b981, #06b6d4, #8b5cf6)',
-                backgroundOrigin: 'border-box',
-                backgroundClip: 'padding-box, border-box',
-                color: '#10b981',
-                padding: '24px 32px',
-                fontSize: '20px',
-                fontWeight: '900',
-                boxShadow: '0 12px 48px rgba(16, 185, 129, 0.4), inset 0 1px 0 rgba(16, 185, 129, 0.2)',
-                textShadow: '0 0 20px rgba(16, 185, 129, 0.5)',
-              },
-            });
-          } else {
-            playLose(); // Play lose sound AFTER coin lands
-            toast.error(`Better luck next time!`, {
-              duration: 3000,
-              className: 'text-xl font-bold',
-              style: {
-                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.15) 100%)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                border: '2px solid transparent',
-                backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.9), rgba(12, 15, 16, 0.9)), linear-gradient(135deg, #ef4444, #dc2626)',
-                backgroundOrigin: 'border-box',
-                backgroundClip: 'padding-box, border-box',
-                color: '#fca5a5',
-                padding: '20px 24px',
-                fontSize: '18px',
-                boxShadow: '0 8px 32px rgba(239, 68, 68, 0.3), inset 0 1px 0 rgba(239, 68, 68, 0.15)',
-              },
-            });
-          }
-          
-          // Show celebration for wins or loses
-          if (didWin) {
-            setShowWinCelebration(true);
-            setTimeout(() => setShowWinCelebration(false), 3000);
-          } else {
-            setShowLoseCelebration(true);
-            setTimeout(() => setShowLoseCelebration(false), 3000);
-          }
-        }, 3000);
-        
-        // IMPORTANT: Wait until reveal animation completes before updating secondary UI
-        // Sequence: Coin reveals (3s) → Sounds play → Brief delay → Wallet/balance/history animations
-        setTimeout(() => {
-          // Trigger wallet animation with win amount (after sound has played)
-          if (didWin) {
-            triggerWinAnimation(Number(formatEther(payout)).toFixed(4));
-          }
-          
-          // Now update all the secondary UI elements
-          memoizedRefetchStats();
-          refetchBalance();
-          triggerBalanceRefetch();
-          fetchRecentFlips();
-        }, ANIMATION_DURATIONS.BALANCE_UPDATE_DELAY + 300); // Extra 300ms delay after coin lands
-      } else {
-        throw new Error('No FlipRevealed event found in transaction receipt');
-      }
-    } catch (error) {
-      console.error('Error flipping coin:', error);
-      console.error('Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        address,
-        selected,
-        amount
-      });
-      
-      // Dismiss loading toast
+      const latestReveal = revealEvents[0];
+      const result = latestReveal?.args.result as number | undefined;
+      const didWin = latestReveal?.args.didWin as boolean | undefined;
+      const payout = latestReveal?.args.payout as bigint | undefined;
+
       toast.dismiss('flip-transaction');
-      
-      // Play error sound
-      playError();
-      
-      // Show error state for 3 seconds before resetting
-      setTimeout(() => {
-        setIsFlipping(false);
-        setIsRevealing(false);
-        setRevealAnimation('');
-        setFlipResult(null);
-      }, 3000);
-      
-      // Show user-friendly error toast
-      const errorMessage = error instanceof Error ? error.message : 'Transaction failed';
-      toast.error(`Transaction failed: ${errorMessage}`, {
-        duration: 5000,
-        description: 'Make sure your wallet is connected and you have enough ETH',
+      toast.success('Flip completed!', {
         className: 'text-xl font-bold',
+        description: didWin ? 'Congratulations! You won the flip!' : 'Better luck next time!',
+        duration: 4000,
         style: {
-          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.15) 100%)',
+          background: didWin
+            ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 182, 212, 0.2) 100%)'
+            : 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.2) 100%)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
           border: '2px solid transparent',
-          backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.9), rgba(12, 15, 16, 0.9)), linear-gradient(135deg, #ef4444, #dc2626)',
+          backgroundImage: didWin
+            ? 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #10b981, #06b6d4)'
+            : 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #ef4444, #dc2626)',
           backgroundOrigin: 'border-box',
           backgroundClip: 'padding-box, border-box',
-          color: '#fca5a5',
+          color: didWin ? '#d1fae5' : '#fecaca',
           padding: '20px 24px',
           fontSize: '18px',
-          boxShadow: '0 8px 32px rgba(239, 68, 68, 0.3), inset 0 1px 0 rgba(239, 68, 68, 0.15)',
+          boxShadow: didWin
+            ? '0 8px 32px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(16, 185, 129, 0.15)'
+            : '0 8px 32px rgba(239, 68, 68, 0.25), inset 0 1px 0 rgba(239, 68, 68, 0.15)',
         },
       });
+
+      if (didWin) {
+        playWin();
+        triggerWinAnimation();
+        setShowWinCelebration(true);
+      } else {
+        playLose();
+        setShowLoseCelebration(true);
+      }
+
+      setIsFlipping(false);
+      setIsRevealing(true);
+      setFlipResult(result !== undefined ? (result === 0 ? 'Heads' : 'Tails') : null);
+
+      memoizedRefetchStats();
+      refetchBalance();
+      await fetchRecentFlips();
+
+      if (payout) {
+        const formattedPayout = Number(formatEther(payout)).toFixed(4);
+        toast.success(`Payout received: ${formattedPayout} ETH`, {
+          duration: 4000,
+        });
+      }
+
+      const requestIdReveal = latestReveal?.args.requestId as bigint | undefined;
+      if (requestIdReveal) {
+        const timestamp = getBestTimestamp(requestIdReveal.toString());
+        setTimestampInCache(requestIdReveal.toString(), timestamp);
+      }
+    } catch (error) {
+      console.error('Flip transaction failed:', error);
+      toast.dismiss('flip-transaction');
+
+      if (error instanceof Error && error.message.includes('User rejected')) {
+        toast.error('Transaction failed: Request cancelled by user', {
+          duration: 4000,
+          description: 'You cancelled the transaction in your wallet',
+          className: 'text-xl font-bold',
+        });
+      } else if (error instanceof Error && error.message.includes('Request timed out')) {
+        toast.error('Transaction failed: Timed out waiting for confirmation', {
+          duration: 5000,
+          description: 'Please try again, the network might be congested',
+          className: 'text-xl font-bold',
+        });
+      } else if (error instanceof Error && error.message.includes('User rejection')) {
+        toast.error('Transaction failed: Transaction reverted', {
+          duration: 5000,
+          description: 'The transaction failed on-chain',
+          className: 'text-xl font-bold',
+        });
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'Transaction failed';
+        toast.error(`Transaction failed: ${errorMessage}`, {
+          duration: 5000,
+          description: 'Make sure your wallet is connected and you have enough ETH',
+          className: 'text-xl font-bold',
+        });
+      }
+
+      setIsFlipping(false);
+      setIsRevealing(false);
+      setFlipResult(null);
+      setShowWinCelebration(false);
+      setShowLoseCelebration(false);
     }
-  }, [address, selectedForUI, amount, writeContractAsync, publicClient, memoizedRefetchStats, fetchRecentFlips, isConnected, chain, switchChain, refetchBalance, walletType, playWin, playLose]);
+  }, [
+    address,
+    isConnected,
+    chain,
+    switchChain,
+    selectedForUI,
+    playFlipStart,
+    writeContractAsync,
+    amount,
+    publicClient,
+    fetchRecentFlips,
+    playWin,
+    playLose,
+    triggerWinAnimation,
+    memoizedRefetchStats,
+    refetchBalance,
+    triggerBalanceRefetch,
+  ]);
 
 
   const displayedFlips = useMemo(() => {
@@ -654,27 +587,27 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         {/* Network status indicator - only render after mount to prevent hydration mismatch */}
         {hasMounted && isConnected && (
           <div className={`px-3 py-2 rounded-lg text-xs font-medium bg-black/90 backdrop-blur-sm border shadow-xl ${
-            chain?.id === 260 
+            chain?.id === EXPECTED_CHAIN_ID 
               ? 'border-emerald-500/50 text-emerald-400' 
               : 'border-amber-500/50 text-amber-400'
           }`}>
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${
-                chain?.id === 260 ? 'bg-emerald-500' : 'bg-amber-500'
+                chain?.id === EXPECTED_CHAIN_ID ? 'bg-emerald-500' : 'bg-amber-500'
               }`} />
               <span>
-                {chain?.id === 260 
-                  ? `Connected: ${chain.name}` 
+                {chain?.id === EXPECTED_CHAIN_ID 
+                  ? `Connected: ${chain?.name ?? network.label}` 
                   : `Wrong Network (ID: ${chain?.id || 'Unknown'})`
                 }
               </span>
             </div>
-            {chain?.id !== 260 && (
+            {chain?.id !== EXPECTED_CHAIN_ID && (
               <button
-                onClick={() => switchChain({ chainId: 260 })}
+                onClick={() => switchChain({ chainId: EXPECTED_CHAIN_ID })}
                 className="mt-2 w-full px-2 py-1 text-xs bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 rounded transition-colors"
               >
-                Switch to Anvil ZkSync
+                Switch to {network.label}
               </button>
             )}
           </div>
@@ -999,7 +932,7 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
                     ...QUICK_BET_PRESETS,
                     { label: 'MAX', value: maxBetValue },
                   ];
-                }, [maxBet]).map((b, i) => (
+                }, [maxBet]).map((b) => (
                   <button
                     key={b.label}
                     onClick={() => {
