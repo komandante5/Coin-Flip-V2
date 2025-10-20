@@ -1,10 +1,22 @@
 import { useCallback, useRef } from 'react';
 
 /**
+ * Detect if the user is on a mobile device
+ */
+function isMobileDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+}
+
+/**
  * Sound effects hook for Web3 Coin Flip game
  * Provides play functions for all game sounds and UI interactions
+ * Automatically disables sound on mobile devices
  */
 export function useSoundEffects() {
+  const isMobile = isMobileDevice();
   // Create audio refs to avoid recreating Audio objects on each render
   const winSoundRef = useRef<HTMLAudioElement | null>(null);
   const loseSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -62,94 +74,104 @@ export function useSoundEffects() {
   }
 
   const playWin = useCallback(() => {
+    if (isMobile) return; // Skip sound on mobile devices
     if (winSoundRef.current) {
       winSoundRef.current.currentTime = 0;
       winSoundRef.current.play().catch(err => {
         console.warn('Failed to play win sound:', err);
       });
     }
-  }, []);
+  }, [isMobile]);
 
   const playLose = useCallback(() => {
+    if (isMobile) return; // Skip sound on mobile devices
     if (loseSoundRef.current) {
       loseSoundRef.current.currentTime = 0;
       loseSoundRef.current.play().catch(err => {
         console.warn('Failed to play lose sound:', err);
       });
     }
-  }, []);
+  }, [isMobile]);
 
   const playSelect = useCallback(() => {
+    if (isMobile) return; // Skip sound on mobile devices
     if (selectSoundRef.current) {
       selectSoundRef.current.currentTime = 0;
       selectSoundRef.current.play().catch(err => {
         console.warn('Failed to play select sound:', err);
       });
     }
-  }, []);
+  }, [isMobile]);
 
   const playButtonClick = useCallback(() => {
+    if (isMobile) return; // Skip sound on mobile devices
     if (buttonClickSoundRef.current) {
       buttonClickSoundRef.current.currentTime = 0;
       buttonClickSoundRef.current.play().catch(err => {
         console.warn('Failed to play button click sound:', err);
       });
     }
-  }, []);
+  }, [isMobile]);
 
   const playWalletConnect = useCallback(() => {
+    if (isMobile) return; // Skip sound on mobile devices
     if (walletConnectSoundRef.current) {
       walletConnectSoundRef.current.currentTime = 0;
       walletConnectSoundRef.current.play().catch(err => {
         console.warn('Failed to play wallet connect sound:', err);
       });
     }
-  }, []);
+  }, [isMobile]);
 
   const playWalletDisconnect = useCallback(() => {
+    if (isMobile) return; // Skip sound on mobile devices
     if (walletDisconnectSoundRef.current) {
       walletDisconnectSoundRef.current.currentTime = 0;
       walletDisconnectSoundRef.current.play().catch(err => {
         console.warn('Failed to play wallet disconnect sound:', err);
       });
     }
-  }, []);
+  }, [isMobile]);
 
   const playTabSwitch = useCallback(() => {
+    if (isMobile) return; // Skip sound on mobile devices
     if (tabSwitchSoundRef.current) {
       tabSwitchSoundRef.current.currentTime = 0;
       tabSwitchSoundRef.current.play().catch(err => {
         console.warn('Failed to play tab switch sound:', err);
       });
     }
-  }, []);
+  }, [isMobile]);
 
   const playHover = useCallback(() => {
+    if (isMobile) return; // Skip sound on mobile devices
     if (hoverSoundRef.current) {
       hoverSoundRef.current.currentTime = 0;
       hoverSoundRef.current.play().catch(err => {
         console.warn('Failed to play hover sound:', err);
       });
     }
-  }, []);
+  }, [isMobile]);
 
   const playError = useCallback(() => {
+    if (isMobile) return; // Skip sound on mobile devices
     if (errorSoundRef.current) {
       errorSoundRef.current.currentTime = 0;
       errorSoundRef.current.play().catch(err => {
         console.warn('Failed to play error sound:', err);
       });
     }
-  }, []);
+  }, [isMobile]);
 
   const playFlipStart = useCallback(() => {
+    if (isMobile) return; // Skip sound on mobile devices
     if (flipStartSoundRef.current) {
       flipStartSoundRef.current.currentTime = 0;
       flipStartSoundRef.current.play().catch(err => {
         console.warn('Failed to play flip start sound:', err);
       });
     }
-  }, []);
+  }, [isMobile]);
 
   return {
     playWin,
