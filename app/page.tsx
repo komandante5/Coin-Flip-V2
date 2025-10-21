@@ -1219,28 +1219,29 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         
         /* 
          * DETERMINISTIC REVEAL ANIMATIONS
-         * These ensure smooth, predictable flips with no sudden corrections
+         * These ensure smooth, predictable flips with seamless transition from fast spin
+         * Starts at same speed as fast flip (1080°/s) then decelerates smoothly
          * 8 full rotations (2880°) for dramatic effect
-         * Smooth ease-out curve for natural deceleration
+         * Custom ease-out curve that starts at full speed (no acceleration)
          * Heads = 0° or multiples of 360°
          * Tails = 180° or (360° * n + 180°)
          */
         
         /* Heads → Heads: 0° to 2880° (8 rotations, lands on Heads at 0°) 
-           Gentle ease-out with minimal acceleration at start for smooth transition */
-        .animate-reveal-heads-to-heads { animation: reveal-heads-to-heads 3s cubic-bezier(0.4, 0.2, 0.5, 1) forwards; }
+           Starts at full speed, then decelerates smoothly - seamless transition from fast spin */
+        .animate-reveal-heads-to-heads { animation: reveal-heads-to-heads 3s cubic-bezier(0.2, 0, 0.5, 1) forwards; }
         
         /* Heads → Tails: 0° to 3060° (8.5 rotations, lands on Tails at 180°) 
-           Gentle ease-out with minimal acceleration at start for smooth transition */
-        .animate-reveal-heads-to-tails { animation: reveal-heads-to-tails 3s cubic-bezier(0.4, 0.2, 0.5, 1) forwards; }
+           Starts at full speed, then decelerates smoothly - seamless transition from fast spin */
+        .animate-reveal-heads-to-tails { animation: reveal-heads-to-tails 3s cubic-bezier(0.2, 0, 0.5, 1) forwards; }
         
         /* Tails → Heads: 180° to 2880° (7.5 rotations from Tails, lands on Heads at 0°) 
-           Gentle ease-out with minimal acceleration at start for smooth transition */
-        .animate-reveal-tails-to-heads { animation: reveal-tails-to-heads 3s cubic-bezier(0.4, 0.2, 0.5, 1) forwards; }
+           Starts at full speed, then decelerates smoothly - seamless transition from fast spin */
+        .animate-reveal-tails-to-heads { animation: reveal-tails-to-heads 3s cubic-bezier(0.2, 0, 0.5, 1) forwards; }
         
         /* Tails → Tails: 180° to 3060° (8 rotations from Tails, lands on Tails at 180°) 
-           Gentle ease-out with minimal acceleration at start for smooth transition */
-        .animate-reveal-tails-to-tails { animation: reveal-tails-to-tails 3s cubic-bezier(0.4, 0.2, 0.5, 1) forwards; }
+           Starts at full speed, then decelerates smoothly - seamless transition from fast spin */
+        .animate-reveal-tails-to-tails { animation: reveal-tails-to-tails 3s cubic-bezier(0.2, 0, 0.5, 1) forwards; }
         
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         
