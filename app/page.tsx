@@ -356,17 +356,17 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
       duration: Infinity,
       className: 'text-xl font-bold',
       style: {
-        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.15) 100%)',
+        background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.15) 100%)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         border: '2px solid transparent',
-        backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #10b981, #06b6d4)',
+        backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #fbbf24, #f59e0b)',
         backgroundOrigin: 'border-box',
         backgroundClip: 'padding-box, border-box',
-        color: '#ffffff',
+        color: '#fef3c7',
         padding: '20px 24px',
         fontSize: '18px',
-        boxShadow: '0 8px 32px rgba(16, 185, 129, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        boxShadow: '0 8px 32px rgba(251, 191, 36, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
       },
     });
 
@@ -380,22 +380,23 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         gas: BigInt(500000),
       });
 
-      toast.loading('Transaction confirmed! Revealing result...', {
+      toast.loading('Transaction confirmed! Requesting random number...', {
         id: 'flip-transaction',
         duration: Infinity,
         className: 'text-xl font-bold',
+        description: 'Waiting for Proof of Play VRF to deliver result (~3s)',
         style: {
-          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.15) 100%)',
+          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
           border: '2px solid transparent',
-          backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #10b981, #06b6d4)',
+          backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #3b82f6, #6366f1)',
           backgroundOrigin: 'border-box',
           backgroundClip: 'padding-box, border-box',
-          color: '#ffffff',
+          color: '#dbeafe',
           padding: '20px 24px',
           fontSize: '18px',
-          boxShadow: '0 8px 32px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 8px 32px rgba(59, 130, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
         },
       });
 
