@@ -420,87 +420,114 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
       triggerBalanceRefetch();
       await fetchRecentFlips();
 
-      const randomNumber = BigInt(Math.floor(Math.random() * 2 ** 32));
-      const txHash2 = await writeContractAsync({
-        address: mockVrfAddress,
-        abi: mockVrfAbi,
-        functionName: 'triggerCallback',  // Changed from 'fulfillRandomWords'
-        args: [coinFlipAddress, requestId, randomNumber],  // Added coinFlipAddress as first arg, removed array wrapper from randomNumber
-        gas: BigInt(500000),
-      });
+      // Wait for FlipRevealed event from VRF callback (Proof of Play VRF delivers automatically)
+      const revealEventAbi = parseAbiItem(
+        'event FlipRevealed(address indexed player, uint256 betAmount, uint8 choice, uint8 result, bool didWin, uint256 payout, uint256 indexed requestId)'
+      );
 
-      const receiptReveal = await publicClient?.waitForTransactionReceipt({ hash: txHash2 });
-      if (!receiptReveal) {
-        throw new Error('Failed to get reveal transaction receipt');
-      }
-      const revealEvents = parseEventLogs({
-        abi: coinFlipAbi,
-        logs: receiptReveal.logs,
-        eventName: 'FlipRevealed',
-      });
+      // Poll for the reveal event (VRF typically delivers within 3 seconds)
+      const startBlock = receiptCommit.blockNumber!;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const latestReveal = revealEvents[0] as any;
-      const result = latestReveal?.args?.result as number | undefined;
-      const didWin = latestReveal?.args?.didWin as boolean | undefined;
-      const payout = latestReveal?.args?.payout as bigint | undefined;
+      let latestReveal: any | undefined;
+      const deadline = Date.now() + 20000; // 20 second timeout
 
-      // STEP 1: Dismiss transaction toast and start the reveal animation
+      while (Date.now() < deadline) {
+        const logs = await publicClient!.getLogs({
+          address: coinFlipAddress,
+          event: revealEventAbi,
+          args: { requestId },
+          fromBlock: startBlock,
+          toBlock: 'latest',
+        });
+        if (logs.length > 0) {
+          latestReveal = logs[logs.length - 1];
+          break;
+        }
+        // Poll every 500ms
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      if (!latestReveal) {
+        throw new Error('Timed out waiting for VRF reveal. Please check the blockchain explorer.');
+      }
+
+      const result = latestReveal.args.result as number;
+      const didWin = latestReveal.args.didWin as boolean;
+      const payout = latestReveal.args.payout as bigint;
+
+      // As soon as we have the result, stop fast spinning and start reveal animation
       toast.dismiss('flip-transaction');
-      
-      // STEP 2: Set the result and start the deceleration animation (coin slows down)
       setIsFlipping(false);
       setIsRevealing(true);
       setFlipResult(result !== undefined ? (result === 0 ? 'Heads' : 'Tails') : null);
       
-      // Show "Revealing..." toast while coin decelerates
-      toast.loading('Revealing result...', {
+      // Show "Revealing..." toast while coin decelerates (3 seconds)
+      toast.loading('Result received! Revealing...', {
         id: 'reveal-animation',
         duration: Infinity,
         className: 'text-xl font-bold',
+        description: 'Watch the coin land on the final result',
         style: {
-          background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(16, 185, 129, 0.15) 100%)',
+          background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
           border: '2px solid transparent',
-          backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #8b5cf6, #10b981)',
+          backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #8b5cf6, #a855f7)',
           backgroundOrigin: 'border-box',
           backgroundClip: 'padding-box, border-box',
-          color: '#ffffff',
+          color: '#ede9fe',
           padding: '20px 24px',
           fontSize: '18px',
           boxShadow: '0 8px 32px rgba(139, 92, 246, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
         },
       });
 
-      // STEP 3: Wait for the reveal animation to complete (3 seconds - coin decelerates and lands)
+      // Wait for the reveal animation to complete (3 seconds - coin decelerates and lands)
       await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // STEP 4: NOW the coin has landed! Show win/lose celebration
+      // NOW the coin has landed! Show win/lose celebration
       toast.dismiss('reveal-animation');
-      toast.success('Flip completed!', {
-        className: 'text-xl font-bold',
-        description: didWin ? 'Congratulations! You won the flip!' : 'Better luck next time!',
-        duration: 4000,
-        style: {
-          background: didWin
-            ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 182, 212, 0.2) 100%)'
-            : 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.2) 100%)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          border: '2px solid transparent',
-          backgroundImage: didWin
-            ? 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #10b981, #06b6d4)'
-            : 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #ef4444, #dc2626)',
-          backgroundOrigin: 'border-box',
-          backgroundClip: 'padding-box, border-box',
-          color: didWin ? '#d1fae5' : '#fecaca',
-          padding: '20px 24px',
-          fontSize: '18px',
-          boxShadow: didWin
-            ? '0 8px 32px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(16, 185, 129, 0.15)'
-            : '0 8px 32px rgba(239, 68, 68, 0.25), inset 0 1px 0 rgba(239, 68, 68, 0.15)',
-        },
-      });
+      
+      if (didWin) {
+        const winAmount = payout ? (Number(formatEther(payout)) - Number(amount)).toFixed(4) : '0';
+        toast.success('🎉 You Won!', {
+          className: 'text-xl font-bold',
+          description: `Congratulations! You won ${winAmount} ETH!`,
+          duration: 5000,
+          style: {
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 182, 212, 0.2) 100%)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: '2px solid transparent',
+            backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #10b981, #06b6d4)',
+            backgroundOrigin: 'border-box',
+            backgroundClip: 'padding-box, border-box',
+            color: '#d1fae5',
+            padding: '20px 24px',
+            fontSize: '18px',
+            boxShadow: '0 8px 32px rgba(16, 185, 129, 0.4), inset 0 1px 0 rgba(16, 185, 129, 0.2)',
+          },
+        });
+      } else {
+        toast.error('You Lost', {
+          className: 'text-xl font-bold',
+          description: `Better luck next time! Lost ${amount} ETH`,
+          duration: 4000,
+          style: {
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.2) 100%)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: '2px solid transparent',
+            backgroundImage: 'linear-gradient(rgba(12, 15, 16, 0.85), rgba(12, 15, 16, 0.85)), linear-gradient(135deg, #ef4444, #dc2626)',
+            backgroundOrigin: 'border-box',
+            backgroundClip: 'padding-box, border-box',
+            color: '#fecaca',
+            padding: '20px 24px',
+            fontSize: '18px',
+            boxShadow: '0 8px 32px rgba(239, 68, 68, 0.3), inset 0 1px 0 rgba(239, 68, 68, 0.15)',
+          },
+        });
+      }
 
       // Trigger win/lose effects AFTER coin has landed
       if (didWin) {
@@ -538,19 +565,19 @@ const handleCoinSelection = useCallback((side: CoinSide) => {
         });
       }
 
-      const requestIdReveal = latestReveal?.args.requestId as bigint | undefined;
-      if (requestIdReveal && receiptReveal.blockNumber !== undefined) {
-        const revealBlock = await publicClient?.getBlock({ blockNumber: receiptReveal.blockNumber });
+      // Update timestamp cache with the reveal block info
+      if (latestReveal && latestReveal.blockNumber) {
+        const revealBlock = await publicClient?.getBlock({ blockNumber: latestReveal.blockNumber });
         if (revealBlock) {
           const blockTimestamp = Number(revealBlock.timestamp);
           const latestBlockNumber = revealBlock.number;
           const timestamp = getBestTimestamp(
-            requestIdReveal.toString(),
+            requestId.toString(),
             blockTimestamp,
             revealBlock.number,
             latestBlockNumber
           );
-          setTimestampInCache(requestIdReveal.toString(), timestamp);
+          setTimestampInCache(requestId.toString(), timestamp);
         }
       }
     } catch (error) {
