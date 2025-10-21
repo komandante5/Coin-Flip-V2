@@ -12,7 +12,6 @@ import { useSoundEffects } from '@/hooks/useSoundEffects';
 import { useWalletAnimation } from '@/hooks/useWalletAnimation';
 
 import coinFlipJson from '@/abi/CoinFlip.json';
-import mockVrfJson from '@/abi/MockVRF.json';
 import { getDeployments } from '@/config/deployments';
 import { getSelectedNetwork } from '@/config/networks';
 
@@ -39,10 +38,8 @@ const deployments = getDeployments();
 const network = getSelectedNetwork();
 
 const coinFlipAbi = coinFlipJson.abi as Abi;
-const mockVrfAbi = mockVrfJson.abi as Abi;
 
 const coinFlipAddress = deployments.coinFlip;
-const mockVrfAddress = deployments.mockVRF;
 
 // Custom hook for animated number counter
 function useAnimatedNumber(targetValue: number, duration: number = 600): number {
